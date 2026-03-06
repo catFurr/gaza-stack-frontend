@@ -1,0 +1,35 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { Rocket, Server, GitBranch, Shield } from 'lucide-astro';
+---
+<Layout title="Gaza Stack">
+  <main class="max-w-3xl mx-auto px-6 py-24">
+    <h1 class="text-4xl font-bold tracking-tight mb-4">Gaza Stack</h1>
+    <p class="text-lg text-zinc-400 mb-16">Self-hosted deployment platform. Vercel-like DX on your own infrastructure.</p>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-8">
+      <div class="space-y-2">
+        <Rocket class="w-6 h-6 text-emerald-400" />
+        <h2 class="text-lg font-semibold">Preview Deployments</h2>
+        <p class="text-sm text-zinc-400">Every branch and commit gets its own URL. Automatic preview environments on push.</p>
+      </div>
+      <div class="space-y-2">
+        <Server class="w-6 h-6 text-emerald-400" />
+        <h2 class="text-lg font-semibold">Fully Self-Hosted</h2>
+        <p class="text-sm text-zinc-400">Runs on your VPS. No vendor lock-in. You own your infrastructure.</p>
+      </div>
+      <div class="space-y-2">
+        <GitBranch class="w-6 h-6 text-emerald-400" />
+        <h2 class="text-lg font-semibold">Transparent Config</h2>
+        <p class="text-sm text-zinc-400">Standard Terraform and Ansible under the hood. No magic — edit anything.</p>
+      </div>
+      <div class="space-y-2">
+        <Shield class="w-6 h-6 text-emerald-400" />
+        <h2 class="text-lg font-semibold">Production Ready</h2>
+        <p class="text-sm text-zinc-400">Nginx, SSL, and CI/CD configured out of the box. Ship with confidence.</p>
+      </div>
+    </div>
+
+    <footer class="mt-24 text-sm text-zinc-600">Gaza Stack — deploy your way.</footer>
+  </main>
+</Layout>
