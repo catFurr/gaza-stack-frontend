@@ -1,0 +1,45 @@
+---
+import SetupLayout from '../../layouts/SetupLayout.astro';
+---
+<SetupLayout step={2} title="Get a domain" subtitle="Register a domain on Cloudflare Registrar, or use one you already own.">
+  <a href="https://www.cloudflare.com/products/registrar/" target="_blank" rel="noopener"
+    class="inline-flex items-center gap-2 px-4 py-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-sm hover:border-zinc-700 transition-colors mb-8">
+    Cloudflare Registrar <span class="text-zinc-500">&nearr;</span>
+  </a>
+
+  <div>
+    <label for="domain" class="block text-sm font-medium mb-1.5">Domain name</label>
+    <input id="domain" type="text" placeholder="mysite.com"
+      class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500/50 placeholder-zinc-600" />
+    <p class="text-xs text-zinc-500 mt-1.5">Just the domain &mdash; no https:// or trailing slash</p>
+  </div>
+</SetupLayout>
+
+<script is:inline>
+(function() {
+  const domain = document.getElementById('domain');
+  const btn = document.getElementById('next-btn');
+
+  domain.value = GS.val('domain');
+
+  function clean(s) {
+    return s.replace(/^https?:\/\//, '').replace(/\/+$/, '').trim().toLowerCase();
+  }
+
+  function isValid(s) {
+    return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z]{2,})+$/.test(s);
+  }
+
+  function validate() {
+    btn.disabled = !isValid(clean(domain.value));
+  }
+
+  domain.addEventListener('input', validate);
+  validate();
+
+  btn.addEventListener('click', () => {
+    GS.set({ domain: clean(domain.value) });
+    window.location.href = btn.dataset.href;
+  });
+})();
+</script>

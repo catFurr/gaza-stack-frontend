@@ -1,0 +1,75 @@
+---
+import Layout from './Layout.astro';
+
+interface Props {
+  step: number;
+  title: string;
+  subtitle?: string;
+}
+
+const { step, title, subtitle } = Astro.props;
+const totalSteps = 10;
+const prevHref = step > 1 ? `/setup/${step - 1}` : '/';
+const nextHref = step < totalSteps ? `/setup/${step + 1}` : '/setup/done';
+---
+
+<Layout title={`Step ${step}: ${title}`}>
+  <script is:inline>
+    window.GS = {
+      _key: 'gs_setup',
+      get() {
+        try { return JSON.parse(localStorage.getItem(this._key) || '{}'); }
+        catch { return {}; }
+      },
+      set(u) {
+        const s = this.get();
+        Object.assign(s, u);
+        localStorage.setItem(this._key, JSON.stringify(s));
+        return s;
+      },
+      val(k) { return this.get()[k] || ''; },
+      clear() { localStorage.removeItem(this._key); }
+    };
+  </script>
+
+  <div class="min-h-screen flex flex-col">
+    <header class="px-6 py-4">
+      <div class="max-w-xl mx-auto flex items-center justify-between">
+        <a href="/" class="text-zinc-500 hover:text-zinc-300 text-sm font-medium tracking-tight transition-colors">gaza stack</a>
+        <span class="text-zinc-600 text-sm">{step} / {totalSteps}</span>
+      </div>
+    </header>
+
+    <div class="max-w-xl mx-auto w-full px-6">
+      <div class="flex gap-1">
+        {Array.from({ length: totalSteps }).map((_, i) => (
+          <div class:list={['h-1 flex-1 rounded-full transition-colors', i < step ? 'bg-emerald-500' : 'bg-zinc-800']} />
+        ))}
+      </div>
+    </div>
+
+    <main class="flex-1 max-w-xl mx-auto w-full px-6 py-10">
+      <h1 class="text-xl font-semibold tracking-tight">{title}</h1>
+      {subtitle && <p class="text-zinc-400 text-sm mt-1">{subtitle}</p>}
+      <div class="mt-8">
+        <slot />
+      </div>
+    </main>
+
+    <footer class="px-6 py-6">
+      <div class="max-w-xl mx-auto flex items-center justify-between">
+        <a href={prevHref} class="text-sm text-zinc-500 hover:text-zinc-300 transition-colors">
+          &larr; Back
+        </a>
+        <button
+          id="next-btn"
+          disabled
+          data-href={nextHref}
+          class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-800 disabled:text-zinc-600 disabled:cursor-not-allowed text-sm font-medium rounded-lg transition-colors"
+        >
+          Continue &rarr;
+        </button>
+      </div>
+    </footer>
+  </div>
+</Layout>

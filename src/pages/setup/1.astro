@@ -1,0 +1,50 @@
+---
+import SetupLayout from '../../layouts/SetupLayout.astro';
+---
+<SetupLayout step={1} title="Provision a VPS" subtitle="Create a VPS with Ubuntu on Hetzner, then enter the details below.">
+  <a href="https://tinyurl.com/pvz2ttx7" target="_blank" rel="noopener"
+    class="inline-flex items-center gap-2 px-4 py-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-sm hover:border-zinc-700 transition-colors">
+    Get a VPS on Hetzner <span class="text-zinc-500">&nearr;</span>
+  </a>
+  <p class="text-xs text-zinc-500 mt-2 mb-8">Recommended: Ubuntu 24.04, CX22 or higher (~&euro;4/mo)</p>
+
+  <div class="space-y-4">
+    <div>
+      <label for="ipv4" class="block text-sm font-medium mb-1.5">IPv4 Address</label>
+      <input id="ipv4" type="text" placeholder="203.0.113.1"
+        class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500/50 placeholder-zinc-600" />
+    </div>
+    <div>
+      <label for="ipv6" class="block text-sm font-medium mb-1.5">IPv6 Address</label>
+      <input id="ipv6" type="text" placeholder="2001:db8::1"
+        class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500/50 placeholder-zinc-600" />
+    </div>
+  </div>
+</SetupLayout>
+
+<script is:inline>
+(function() {
+  const ipv4 = document.getElementById('ipv4');
+  const ipv6 = document.getElementById('ipv6');
+  const btn = document.getElementById('next-btn');
+
+  ipv4.value = GS.val('ipv4');
+  ipv6.value = GS.val('ipv6');
+
+  const isIPv4 = s => /^(\d{1,3}\.){3}\d{1,3}$/.test(s) && s.split('.').every(n => +n >= 0 && +n <= 255);
+  const isIPv6 = s => /^[0-9a-fA-F:]+$/.test(s) && s.includes(':');
+
+  function validate() {
+    btn.disabled = !(isIPv4(ipv4.value.trim()) && isIPv6(ipv6.value.trim()));
+  }
+
+  ipv4.addEventListener('input', validate);
+  ipv6.addEventListener('input', validate);
+  validate();
+
+  btn.addEventListener('click', () => {
+    GS.set({ ipv4: ipv4.value.trim(), ipv6: ipv6.value.trim() });
+    window.location.href = btn.dataset.href;
+  });
+})();
+</script>

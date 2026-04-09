@@ -1,0 +1,257 @@
+---
+import SetupLayout from '../../layouts/SetupLayout.astro';
+---
+<SetupLayout step={9} title="Add workflows" subtitle="Add these GitHub Actions workflows to your repository.">
+  <div class="space-y-6">
+    <!-- Deploy workflow -->
+    <div>
+      <div class="flex items-center justify-between mb-1.5">
+        <span class="text-sm font-medium">.github/workflows/deploy.yml</span>
+        <div class="flex items-center gap-2">
+          <button id="copy-deploy" class="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">Copy</button>
+          <button id="push-deploy" class="text-xs text-emerald-500 hover:text-emerald-400 transition-colors">Push to repo</button>
+        </div>
+      </div>
+      <pre id="deploy-yaml" class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 text-xs font-mono text-zinc-300 overflow-x-auto whitespace-pre max-h-64 overflow-y-auto"></pre>
+      <div id="deploy-status" class="mt-1 hidden"></div>
+    </div>
+
+    <!-- Provision workflow -->
+    <div>
+      <div class="flex items-center justify-between mb-1.5">
+        <span class="text-sm font-medium">.github/workflows/provision.yml</span>
+        <div class="flex items-center gap-2">
+          <button id="copy-provision" class="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">Copy</button>
+          <button id="push-provision" class="text-xs text-emerald-500 hover:text-emerald-400 transition-colors">Push to repo</button>
+        </div>
+      </div>
+      <pre id="provision-yaml" class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 text-xs font-mono text-zinc-300 overflow-x-auto whitespace-pre max-h-64 overflow-y-auto"></pre>
+      <div id="provision-status" class="mt-1 hidden"></div>
+    </div>
+  </div>
+</SetupLayout>
+
+<script is:inline>
+(function() {
+  var state = GS.get();
+  var repo = state.repoFullName || '';
+  var domain = state.domain || 'example.com';
+  var buildCommand = state.buildCommand || 'bun run build';
+  var outputDir = state.outputDir || 'dist';
+  var branch = state.defaultBranch || 'main';
+  var token = state.githubPat || '';
+  var btn = document.getElementById('next-btn');
+
+  // Detect package manager from build command
+  var pm = 'npm';
+  if (buildCommand.indexOf('bun') === 0) pm = 'bun';
+  else if (buildCommand.indexOf('pnpm') === 0) pm = 'pnpm';
+  else if (buildCommand.indexOf('yarn') === 0) pm = 'yarn';
+
+  var setupStep, installCmd;
+  switch (pm) {
+    case 'bun':
+      setupStep = '      - uses: oven-sh/setup-bun@v2';
+      installCmd = 'bun install';
+      break;
+    case 'pnpm':
+      setupStep = '      - uses: pnpm/action-setup@v4\n      - uses: actions/setup-node@v4\n        with:\n          node-version: 22\n          cache: pnpm';
+      installCmd = 'pnpm install --frozen-lockfile';
+      break;
+    case 'yarn':
+      setupStep = '      - uses: actions/setup-node@v4\n        with:\n          node-version: 22\n          cache: yarn';
+      installCmd = 'yarn install --frozen-lockfile';
+      break;
+    default:
+      setupStep = '      - uses: actions/setup-node@v4\n        with:\n          node-version: 22\n          cache: npm';
+      installCmd = 'npm ci';
+  }
+
+  var ghRef = '$' + '{{ github.ref }}';
+  var ghSha = '$' + '{{ github.sha }}';
+  var ghHead = '$' + '{{ github.event.pull_request.head.ref }}';
+  var sVPS_SSH = '$' + '{{ secrets.VPS_SSH_KEY }}';
+  var sVPS_HOST = '$' + '{{ secrets.VPS_HOST }}';
+  var sCF_TOKEN = '$' + '{{ secrets.CLOUDFLARE_API_TOKEN }}';
+  var sKON_GH = '$' + '{{ secrets.KON_GITHUB_TOKEN }}';
+  var sKON_REPOS = '$' + '{{ secrets.KON_REPOS }}';
+  var sANTH = '$' + '{{ secrets.ANTHROPIC_API_KEY }}';
+  var ghActor = '$' + '{{ github.actor }}';
+
+  var deployYaml = [
+    'name: Build & Deploy',
+    'on:',
+    '  push:',
+    '    branches: [' + branch + ']',
+    '  pull_request:',
+    '',
+    'jobs:',
+    '  build:',
+    '    runs-on: ubuntu-latest',
+    '    steps:',
+    '      - uses: actions/checkout@v4',
+    setupStep,
+    '      - run: ' + installCmd,
+    '      - run: ' + buildCommand,
+    '      - uses: actions/upload-artifact@v4',
+    '        with:',
+    '          name: build',
+    '          path: ' + outputDir + '/',
+    '',
+    '  deploy:',
+    '    needs: build',
+    '    uses: catFurr/kon/.github/workflows/deploy.yml@main',
+    '    with:',
+    '      domain: ' + domain,
+    '      artifact_name: build',
+    "      environment: " + ghRef + " == 'refs/heads/" + branch + "' && 'production' || 'preview'",
+    '      branch_slug: ' + ghHead,
+    '      sha: ' + ghSha,
+    '    secrets:',
+    '      VPS_SSH_KEY: ' + sVPS_SSH,
+    '      VPS_HOST: ' + sVPS_HOST,
+  ].join('\n');
+
+  var provisionYaml = [
+    'name: Provision Server',
+    'on:',
+    '  workflow_dispatch:',
+    '    inputs:',
+    '      domain:',
+    '        required: true',
+    '        type: string',
+    '        default: ' + domain,
+    '',
+    'jobs:',
+    '  provision:',
+    '    runs-on: ubuntu-latest',
+    '    steps:',
+    '      - uses: actions/checkout@v4',
+    '        with:',
+    '          repository: catFurr/kon',
+    '          ref: main',
+    '',
+    '      - name: Setup SSH',
+    '        run: |',
+    '          mkdir -p ~/.ssh',
+    '          echo "' + sVPS_SSH + '" > ~/.ssh/deploy_key',
+    '          chmod 600 ~/.ssh/deploy_key',
+    '          ssh-keyscan -H ' + sVPS_HOST + ' >> ~/.ssh/known_hosts',
+    '',
+    '      - name: Install Ansible',
+    '        run: pip install ansible',
+    '',
+    '      - name: Write inventory',
+    '        run: |',
+    '          cat > ansible/inventory/hosts.yml << EOF',
+    '          all:',
+    '            hosts:',
+    '              vps:',
+    '                ansible_host: ' + sVPS_HOST,
+    '                ansible_user: root',
+    '                ansible_ssh_private_key_file: ~/.ssh/deploy_key',
+    '          EOF',
+    '',
+    '      - name: Provision',
+    '        working-directory: ansible',
+    '        run: |',
+    '          ansible-playbook playbooks/provision.yml \\',
+    "            -e \"domain=" + '$' + "{{ inputs.domain }}\" \\",
+    '            -e "cloudflare_api_token=' + sCF_TOKEN + '" \\',
+    "            -e '{\"repos\": " + sKON_REPOS + "}' \\",
+    '            -e "github_token=' + sKON_GH + '" \\',
+    '            -e "github_user=' + ghActor + '" \\',
+    '            -e "anthropic_api_key=' + sANTH + '"',
+    '        env:',
+    '          ANSIBLE_HOST_KEY_CHECKING: "false"',
+  ].join('\n');
+
+  document.getElementById('deploy-yaml').textContent = deployYaml;
+  document.getElementById('provision-yaml').textContent = provisionYaml;
+
+  // Copy buttons
+  document.getElementById('copy-deploy').addEventListener('click', function() {
+    navigator.clipboard.writeText(deployYaml);
+    this.textContent = 'Copied!';
+    var self = this;
+    setTimeout(function() { self.textContent = 'Copy'; }, 1500);
+  });
+
+  document.getElementById('copy-provision').addEventListener('click', function() {
+    navigator.clipboard.writeText(provisionYaml);
+    this.textContent = 'Copied!';
+    var self = this;
+    setTimeout(function() { self.textContent = 'Copy'; }, 1500);
+  });
+
+  // Push to repo via GitHub Contents API
+  function pushFile(path, content, statusElId, btnEl) {
+    if (!token || !repo) return;
+    btnEl.disabled = true;
+    btnEl.textContent = 'Pushing...';
+    var statusEl = document.getElementById(statusElId);
+    statusEl.classList.remove('hidden');
+
+    // Check if file exists first (to get SHA for update)
+    fetch('https://api.github.com/repos/' + repo + '/contents/' + path, {
+      headers: { Authorization: 'token ' + token }
+    })
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(existing) {
+      var body = {
+        message: 'Add ' + path.split('/').pop(),
+        content: btoa(unescape(encodeURIComponent(content))),
+        branch: branch,
+      };
+      if (existing && existing.sha) body.sha = existing.sha;
+
+      return fetch('https://api.github.com/repos/' + repo + '/contents/' + path, {
+        method: 'PUT',
+        headers: {
+          Authorization: 'token ' + token,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+    })
+    .then(function(r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
+    .then(function() {
+      statusEl.innerHTML = '<span class="text-xs text-emerald-400">\u2713 Pushed successfully</span>';
+      btnEl.textContent = 'Done';
+      checkBothDone();
+    })
+    .catch(function(e) {
+      statusEl.innerHTML = '<span class="text-xs text-red-400">\u2717 Failed: ' + e.message + '</span>';
+      btnEl.disabled = false;
+      btnEl.textContent = 'Retry';
+    });
+  }
+
+  var deployDone = false, provisionDone = false;
+  function checkBothDone() {
+    var dStatus = document.getElementById('deploy-status').textContent;
+    var pStatus = document.getElementById('provision-status').textContent;
+    if (dStatus.indexOf('\u2713') !== -1 && pStatus.indexOf('\u2713') !== -1) {
+      btn.disabled = false;
+    }
+  }
+
+  document.getElementById('push-deploy').addEventListener('click', function() {
+    pushFile('.github/workflows/deploy.yml', deployYaml, 'deploy-status', this);
+  });
+
+  document.getElementById('push-provision').addEventListener('click', function() {
+    pushFile('.github/workflows/provision.yml', provisionYaml, 'provision-status', this);
+  });
+
+  // Also allow manual proceed
+  btn.disabled = false;
+
+  btn.addEventListener('click', function() {
+    window.location.href = btn.dataset.href;
+  });
+})();
+</script>

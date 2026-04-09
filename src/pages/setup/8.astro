@@ -1,0 +1,132 @@
+---
+import SetupLayout from '../../layouts/SetupLayout.astro';
+---
+<SetupLayout step={8} title="Add GitHub secrets" subtitle="These secrets are needed for deployments and server provisioning.">
+  <div id="secrets-list" class="space-y-3"></div>
+
+  <div class="mt-6 flex items-center gap-3">
+    <button id="verify-secrets-btn"
+      class="px-4 py-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-sm hover:border-zinc-700 transition-colors">
+      Verify secrets
+    </button>
+    <a id="settings-link" href="#" target="_blank" rel="noopener"
+      class="text-sm text-zinc-500 hover:text-zinc-300 transition-colors">
+      Open repo settings &nearr;
+    </a>
+  </div>
+
+  <div id="verify-results" class="mt-4 hidden"></div>
+</SetupLayout>
+
+<script is:inline>
+(function() {
+  var state = GS.get();
+  var repo = state.repoFullName || '';
+  var btn = document.getElementById('next-btn');
+  var repoName = repo.split('/')[1] || '';
+
+  document.getElementById('settings-link').href = 'https://github.com/' + repo + '/settings/secrets/actions';
+
+  var konReposVal = JSON.stringify([{ name: repoName, url: 'https://github.com/' + repo }]);
+
+  var secrets = [
+    { name: 'VPS_SSH_KEY',          desc: 'SSH private key content',                   auto: false, hint: 'cat ~/.ssh/id_ed25519 | pbcopy' },
+    { name: 'VPS_HOST',             desc: 'Server IPv4 address',                       auto: true,  value: state.ipv4 || '' },
+    { name: 'CLOUDFLARE_API_TOKEN', desc: 'Cloudflare API token (Zone:DNS:Edit)',       auto: false, link: 'https://dash.cloudflare.com/profile/api-tokens' },
+    { name: 'KON_GITHUB_TOKEN',     desc: 'GitHub PAT (same as step 4)',               auto: true,  value: state.githubPat || '' },
+    { name: 'KON_REPOS',            desc: 'Repos JSON array',                          auto: true,  value: konReposVal },
+    { name: 'ANTHROPIC_API_KEY',    desc: 'Anthropic API key for Claude Code sessions', auto: false },
+  ];
+
+  var list = document.getElementById('secrets-list');
+
+  secrets.forEach(function(s, i) {
+    var div = document.createElement('div');
+    div.className = 'bg-zinc-900 border border-zinc-800 rounded-lg p-4';
+
+    var html = '<div class="flex items-center justify-between">' +
+      '<code class="text-sm font-mono text-emerald-400">' + s.name + '</code>' +
+      '<span id="status-' + i + '" class="text-xs text-zinc-600">unknown</span>' +
+      '</div>' +
+      '<p class="text-xs text-zinc-500 mt-0.5">' + s.desc + '</p>';
+
+    if (s.auto) {
+      var displayVal = s.value.length > 60 ? s.value.slice(0, 60) + '...' : s.value;
+      html += '<div class="flex items-center gap-2 mt-2">' +
+        '<code class="text-xs font-mono text-zinc-400 truncate flex-1">' + displayVal + '</code>' +
+        '<button class="copy-val-btn text-xs text-zinc-500 hover:text-zinc-300 shrink-0" data-val="' + i + '">Copy</button>' +
+        '</div>';
+    } else {
+      if (s.name === 'VPS_SSH_KEY') {
+        html += '<p class="text-xs text-zinc-600 mt-2 font-mono">' + s.hint + '</p>';
+      }
+      if (s.link) {
+        html += '<a href="' + s.link + '" target="_blank" rel="noopener" class="text-xs text-zinc-500 hover:text-zinc-300 mt-1 inline-block">Create token &nearr;</a>';
+      }
+    }
+
+    div.innerHTML = html;
+    list.appendChild(div);
+  });
+
+  // Copy handlers
+  var copyValues = {};
+  secrets.forEach(function(s, i) { if (s.auto) copyValues[i] = s.value; });
+
+  document.querySelectorAll('.copy-val-btn').forEach(function(el) {
+    el.addEventListener('click', function() {
+      var idx = this.getAttribute('data-val');
+      navigator.clipboard.writeText(copyValues[idx]);
+      this.textContent = 'Copied!';
+      var self = this;
+      setTimeout(function() { self.textContent = 'Copy'; }, 1500);
+    });
+  });
+
+  // Verify secrets
+  document.getElementById('verify-secrets-btn').addEventListener('click', function() {
+    var token = state.githubPat;
+    if (!token || !repo) return;
+
+    this.disabled = true;
+    this.textContent = 'Checking...';
+    var self = this;
+
+    fetch('https://api.github.com/repos/' + repo + '/actions/secrets', {
+      headers: { Authorization: 'token ' + token }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var existing = (data.secrets || []).map(function(s) { return s.name; });
+      var allFound = true;
+
+      secrets.forEach(function(s, i) {
+        var el = document.getElementById('status-' + i);
+        if (existing.includes(s.name)) {
+          el.textContent = '\u2713 set';
+          el.className = 'text-xs text-emerald-400';
+        } else {
+          el.textContent = '\u2717 missing';
+          el.className = 'text-xs text-red-400';
+          allFound = false;
+        }
+      });
+
+      if (allFound) btn.disabled = false;
+    })
+    .catch(function(e) {
+      var results = document.getElementById('verify-results');
+      results.classList.remove('hidden');
+      results.innerHTML = '<p class="text-sm text-red-400">Failed to check: ' + e.message + '</p>';
+    })
+    .finally(function() {
+      self.disabled = false;
+      self.textContent = 'Verify secrets';
+    });
+  });
+
+  btn.addEventListener('click', function() {
+    window.location.href = btn.dataset.href;
+  });
+})();
+</script>

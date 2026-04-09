@@ -1,0 +1,116 @@
+---
+import SetupLayout from '../../layouts/SetupLayout.astro';
+---
+<SetupLayout step={3} title="Configure DNS" subtitle="Add these records in your Cloudflare DNS dashboard. Proxy must be off (DNS only).">
+  <div class="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden mb-6">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-zinc-500 text-xs border-b border-zinc-800">
+          <th class="text-left px-4 py-2 font-medium">Type</th>
+          <th class="text-left px-4 py-2 font-medium">Name</th>
+          <th class="text-left px-4 py-2 font-medium">Content</th>
+        </tr>
+      </thead>
+      <tbody id="dns-table" class="font-mono"></tbody>
+    </table>
+  </div>
+
+  <button id="check-dns-btn"
+    class="px-4 py-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-sm hover:border-zinc-700 transition-colors">
+    Check DNS
+  </button>
+
+  <div id="dns-results" class="mt-4 space-y-2 hidden"></div>
+</SetupLayout>
+
+<script is:inline>
+(function() {
+  var state = GS.get();
+  var domain = state.domain || 'example.com';
+  var ipv4 = state.ipv4 || '0.0.0.0';
+  var ipv6 = state.ipv6 || '::1';
+
+  var records = [
+    { type: 'A',    name: domain,          content: ipv4 },
+    { type: 'AAAA', name: domain,          content: ipv6 },
+    { type: 'A',    name: '*.' + domain,   content: ipv4 },
+    { type: 'AAAA', name: '*.' + domain,   content: ipv6 },
+  ];
+
+  var table = document.getElementById('dns-table');
+  records.forEach(function(r) {
+    var tr = document.createElement('tr');
+    tr.className = 'border-b border-zinc-800/50';
+    tr.innerHTML =
+      '<td class="px-4 py-2.5 text-emerald-400">' + r.type + '</td>' +
+      '<td class="px-4 py-2.5">' + r.name + '</td>' +
+      '<td class="px-4 py-2.5 text-zinc-400">' + r.content + '</td>';
+    table.appendChild(tr);
+  });
+
+  var btn = document.getElementById('next-btn');
+  var checkBtn = document.getElementById('check-dns-btn');
+  var results = document.getElementById('dns-results');
+
+  function dnsLookup(name, type) {
+    return fetch('https://cloudflare-dns.com/dns-query?name=' + encodeURIComponent(name) + '&type=' + type, {
+      headers: { Accept: 'application/dns-json' }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) { return (d.Answer || []).map(function(a) { return a.data.replace(/\.$/,''); }); })
+    .catch(function() { return []; });
+  }
+
+  checkBtn.addEventListener('click', function() {
+    checkBtn.disabled = true;
+    checkBtn.textContent = 'Checking...';
+    results.innerHTML = '';
+    results.classList.remove('hidden');
+
+    var wildcardTest = '_gs-' + Date.now() + '.' + domain;
+    var checks = [
+      { type: 'A',    name: domain,        expect: ipv4, label: 'A ' + domain },
+      { type: 'AAAA', name: domain,        expect: ipv6, label: 'AAAA ' + domain },
+      { type: 'A',    name: wildcardTest,  expect: ipv4, label: 'A *.' + domain },
+      { type: 'AAAA', name: wildcardTest,  expect: ipv6, label: 'AAAA *.' + domain },
+    ];
+
+    var allGood = true;
+    var pending = checks.length;
+
+    checks.forEach(function(c) {
+      dnsLookup(c.name, c.type).then(function(found) {
+        var ok = found.includes(c.expect);
+        if (!ok) allGood = false;
+
+        var div = document.createElement('div');
+        div.className = 'flex items-center gap-2 text-sm';
+        if (ok) {
+          div.innerHTML = '<span class="text-emerald-400">&#10003;</span> <span>' + c.label + '</span> <span class="text-zinc-600">&rarr; ' + c.expect + '</span>';
+        } else {
+          div.innerHTML = '<span class="text-red-400">&#10007;</span> <span>' + c.label + '</span> <span class="text-zinc-600">&mdash; ' + (found.length ? 'got ' + found.join(', ') : 'not found') + '</span>';
+        }
+        results.appendChild(div);
+
+        pending--;
+        if (pending === 0) {
+          if (allGood) {
+            btn.disabled = false;
+          } else {
+            var hint = document.createElement('p');
+            hint.className = 'text-xs text-zinc-500 mt-3';
+            hint.textContent = 'DNS can take a few minutes to propagate. Try again shortly.';
+            results.appendChild(hint);
+          }
+          checkBtn.disabled = false;
+          checkBtn.textContent = 'Check again';
+        }
+      });
+    });
+  });
+
+  btn.addEventListener('click', function() {
+    window.location.href = btn.dataset.href;
+  });
+})();
+</script>

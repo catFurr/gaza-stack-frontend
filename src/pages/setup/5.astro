@@ -1,0 +1,20 @@
+---
+import SetupLayout from '../../layouts/SetupLayout.astro';
+---
+<SetupLayout step={5} title="Connect AI tool" subtitle="AI-powered development sessions on your server.">
+  <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-8 text-center">
+    <p class="text-zinc-400 text-sm mb-2">Under development</p>
+    <p class="text-zinc-500 text-xs">This step will configure AI tool integration for your dev sessions.<br>Skip for now &mdash; we'll circle back once other pieces are in place.</p>
+  </div>
+</SetupLayout>
+
+<script is:inline>
+(function() {
+  var btn = document.getElementById('next-btn');
+  btn.disabled = false;
+  btn.textContent = 'Skip \u2192';
+  btn.addEventListener('click', function() {
+    window.location.href = btn.dataset.href;
+  });
+})();
+</script>

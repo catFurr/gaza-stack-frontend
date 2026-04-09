@@ -1,0 +1,63 @@
+---
+import SetupLayout from '../../layouts/SetupLayout.astro';
+---
+<SetupLayout step={6} title="Update SSH config" subtitle="Add this block to ~/.ssh/config for easy access to your server.">
+  <div>
+    <label for="ssh-key-path" class="block text-sm font-medium mb-1.5">Path to your SSH private key</label>
+    <input id="ssh-key-path" type="text" placeholder="~/.ssh/id_ed25519"
+      class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500/50 placeholder-zinc-600 font-mono" />
+    <p class="text-xs text-zinc-500 mt-1.5">The key that has access to your VPS</p>
+  </div>
+
+  <div class="mt-6">
+    <div class="flex items-center justify-between mb-1.5">
+      <span class="text-sm font-medium">Add to ~/.ssh/config</span>
+      <button id="copy-btn" class="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">Copy</button>
+    </div>
+    <pre id="ssh-config" class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 text-sm font-mono text-zinc-300 overflow-x-auto whitespace-pre"></pre>
+  </div>
+
+  <div class="mt-6">
+    <p class="text-sm text-zinc-400 mb-2">Then test your connection:</p>
+    <pre class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 text-sm font-mono text-zinc-300">ssh <span id="ssh-alias"></span></pre>
+  </div>
+</SetupLayout>
+
+<script is:inline>
+(function() {
+  var state = GS.get();
+  var domain = state.domain || 'mysite.com';
+  var ipv4 = state.ipv4 || '0.0.0.0';
+  var keyInput = document.getElementById('ssh-key-path');
+  var configEl = document.getElementById('ssh-config');
+  var aliasEl = document.getElementById('ssh-alias');
+  var btn = document.getElementById('next-btn');
+
+  keyInput.value = GS.val('sshKeyPath') || '~/.ssh/id_ed25519';
+
+  var alias = domain.split('.')[0];
+  aliasEl.textContent = alias;
+
+  function updateConfig() {
+    var keyPath = keyInput.value.trim() || '~/.ssh/id_ed25519';
+    configEl.textContent = 'Host ' + alias + '\n  HostName ' + ipv4 + '\n  User root\n  IdentityFile ' + keyPath;
+  }
+
+  keyInput.addEventListener('input', updateConfig);
+  updateConfig();
+
+  document.getElementById('copy-btn').addEventListener('click', function() {
+    navigator.clipboard.writeText(configEl.textContent);
+    this.textContent = 'Copied!';
+    var self = this;
+    setTimeout(function() { self.textContent = 'Copy'; }, 1500);
+  });
+
+  btn.disabled = false;
+
+  btn.addEventListener('click', function() {
+    GS.set({ sshKeyPath: keyInput.value.trim() || '~/.ssh/id_ed25519', sshAlias: alias });
+    window.location.href = btn.dataset.href;
+  });
+})();
+</script>
