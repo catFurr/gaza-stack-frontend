@@ -5,13 +5,26 @@ import Layout from '../../layouts/Layout.astro';
   <main class="min-h-screen flex items-center justify-center px-6">
     <div class="max-w-md w-full text-center">
       <p class="text-4xl mb-4">&#127881;</p>
-      <h1 class="text-2xl font-bold tracking-tight mb-2">Done</h1>
-      <p class="text-zinc-400 text-sm mb-8">Your stack is live.</p>
+      <h1 class="text-2xl font-bold tracking-tight mb-2">You're all set</h1>
+      <p class="text-zinc-400 text-sm mb-8">Your dev environment server is ready.</p>
 
-      <div class="text-sm text-left bg-zinc-900 border border-zinc-800 rounded-lg p-5 font-mono space-y-3">
-        <div>Visit <a id="live-url" href="#" target="_blank" class="text-emerald-400 hover:text-emerald-300 transition-colors">mysite.com</a></div>
-        <div>Run <code class="text-emerald-400">ssh <span id="ssh-alias">mysite</span></code> to start sessions</div>
-        <div>Use <code class="text-emerald-400">kon --help</code> on the server for guides</div>
+      <div class="text-sm text-left bg-zinc-900 border border-zinc-800 rounded-lg p-5 space-y-4">
+        <div>
+          <p class="text-xs text-zinc-500 mb-1">Connect to your server</p>
+          <code class="text-emerald-400 font-mono">ssh <span id="ssh-alias">myserver</span></code>
+        </div>
+        <div>
+          <p class="text-xs text-zinc-500 mb-1">Create a dev session</p>
+          <code class="text-emerald-400 font-mono">kon new my-feature</code>
+        </div>
+        <div>
+          <p class="text-xs text-zinc-500 mb-1">Sessions are accessible at</p>
+          <code class="text-emerald-400 font-mono" id="session-url">&lt;name&gt;.mysite.com</code>
+        </div>
+        <div>
+          <p class="text-xs text-zinc-500 mb-1">More commands</p>
+          <code class="text-emerald-400 font-mono">kon --help</code>
+        </div>
       </div>
 
       <div class="mt-8 flex items-center justify-center gap-4">
@@ -28,11 +41,8 @@ import Layout from '../../layouts/Layout.astro';
   var domain = state.domain || 'mysite.com';
   var alias = domain.split('.')[0];
 
-  var liveUrl = document.getElementById('live-url');
-  liveUrl.href = 'https://' + domain;
-  liveUrl.textContent = domain;
-
   document.getElementById('ssh-alias').textContent = alias;
+  document.getElementById('session-url').textContent = '<name>.' + domain;
 
   document.getElementById('reset-btn').addEventListener('click', function() {
     if (confirm('Clear all setup data from this browser?')) {

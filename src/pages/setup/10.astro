@@ -1,35 +1,20 @@
 ---
 import SetupLayout from '../../layouts/SetupLayout.astro';
 ---
-<SetupLayout step={10} title="Run the setup" subtitle="Provision your server and trigger the first deploy.">
+<SetupLayout step={10} title="Provision your server" subtitle="Run the provision workflow to set up your VPS with dev environment tools.">
   <div class="space-y-6">
-    <!-- Provision -->
     <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
       <div class="flex items-center justify-between mb-2">
-        <span class="text-sm font-medium">1. Provision server</span>
+        <span class="text-sm font-medium">Provision server</span>
         <span id="provision-status" class="text-xs text-zinc-600">not started</span>
       </div>
-      <p class="text-xs text-zinc-500 mb-3">Sets up nginx, SSL, sessions, and dev tools on your VPS.</p>
+      <p class="text-xs text-zinc-500 mb-3">Sets up nginx, SSL, sessions, and dev tools on your VPS. This may take several minutes.</p>
       <button id="provision-btn"
         class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-sm font-medium rounded-lg transition-colors">
         Run provision
       </button>
     </div>
 
-    <!-- Deploy -->
-    <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-      <div class="flex items-center justify-between mb-2">
-        <span class="text-sm font-medium">2. Initial deploy</span>
-        <span id="deploy-status" class="text-xs text-zinc-600">waiting for provision</span>
-      </div>
-      <p class="text-xs text-zinc-500 mb-3">Builds and deploys the default branch to production.</p>
-      <button id="deploy-btn" disabled
-        class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-800 disabled:text-zinc-600 disabled:cursor-not-allowed text-sm font-medium rounded-lg transition-colors">
-        Trigger deploy
-      </button>
-    </div>
-
-    <!-- Actions link -->
     <a id="actions-link" href="#" target="_blank" rel="noopener"
       class="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors">
       View GitHub Actions &nearr;
@@ -51,9 +36,7 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
   document.getElementById('actions-link').href = 'https://github.com/' + repo + '/actions';
 
   var provisionStatus = document.getElementById('provision-status');
-  var deployStatus = document.getElementById('deploy-status');
   var provisionBtn = document.getElementById('provision-btn');
-  var deployBtn = document.getElementById('deploy-btn');
   var log = document.getElementById('run-log');
 
   function addLog(msg, type) {
@@ -64,7 +47,7 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
     log.appendChild(p);
   }
 
-  function pollRun(runId, statusEl, label) {
+  function pollRun(runId) {
     return new Promise(function(resolve, reject) {
       var interval = setInterval(function() {
         fetch('https://api.github.com/repos/' + repo + '/actions/runs/' + runId, {
@@ -72,30 +55,27 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
         })
         .then(function(r) { return r.json(); })
         .then(function(run) {
-          statusEl.textContent = run.status;
+          provisionStatus.textContent = run.status;
           if (run.status === 'completed') {
             clearInterval(interval);
             if (run.conclusion === 'success') {
-              statusEl.textContent = '\u2713 success';
-              statusEl.className = 'text-xs text-emerald-400';
-              addLog(label + ' completed successfully', 'ok');
+              provisionStatus.textContent = '\u2713 success';
+              provisionStatus.className = 'text-xs text-emerald-400';
+              addLog('Provision completed successfully!', 'ok');
               resolve();
             } else {
-              statusEl.textContent = '\u2717 ' + run.conclusion;
-              statusEl.className = 'text-xs text-red-400';
-              addLog(label + ' failed: ' + run.conclusion, 'err');
+              provisionStatus.textContent = '\u2717 ' + run.conclusion;
+              provisionStatus.className = 'text-xs text-red-400';
+              addLog('Provision failed: ' + run.conclusion + '. Check the Actions tab for details.', 'err');
               reject(new Error(run.conclusion));
             }
           }
         })
-        .catch(function() {
-          // Keep polling on network errors
-        });
+        .catch(function() {});
       }, 5000);
     });
   }
 
-  // Trigger provision (workflow_dispatch)
   provisionBtn.addEventListener('click', function() {
     provisionBtn.disabled = true;
     provisionStatus.textContent = 'triggering...';
@@ -113,8 +93,6 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
       if (!r.ok) throw new Error('HTTP ' + r.status);
       provisionStatus.textContent = 'triggered, waiting...';
       addLog('Provision triggered. Polling for status...', 'info');
-
-      // Wait a moment then find the run
       return new Promise(function(resolve) { setTimeout(resolve, 3000); });
     })
     .then(function() {
@@ -129,50 +107,15 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
       }
       var runId = data.workflow_runs[0].id;
       addLog('Found run #' + runId + '. This may take several minutes.', 'info');
-      return pollRun(runId, provisionStatus, 'Provision');
+      return pollRun(runId);
     })
     .then(function() {
-      deployBtn.disabled = false;
-      deployStatus.textContent = 'ready';
+      btn.disabled = false;
     })
     .catch(function(e) {
-      addLog('Provision error: ' + e.message, 'err');
+      addLog('Error: ' + e.message, 'err');
       provisionBtn.disabled = false;
       provisionBtn.textContent = 'Retry';
-    });
-  });
-
-  // Trigger deploy (re-run the deploy workflow on default branch)
-  deployBtn.addEventListener('click', function() {
-    deployBtn.disabled = true;
-    deployStatus.textContent = 'triggering...';
-    addLog('Triggering deploy workflow...', 'info');
-
-    // Use workflow_dispatch or re-run. Since deploy.yml triggers on push,
-    // we can create a dispatch event. Let's use the GitHub API to trigger it.
-    fetch('https://api.github.com/repos/' + repo + '/actions/workflows/deploy.yml/dispatches', {
-      method: 'POST',
-      headers: {
-        Authorization: 'token ' + token,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ ref: branch }),
-    })
-    .then(function(r) {
-      if (r.ok || r.status === 204) {
-        deployStatus.textContent = 'triggered';
-        addLog('Deploy triggered! It will build and deploy your ' + branch + ' branch.', 'ok');
-        btn.disabled = false;
-        return;
-      }
-      // If workflow_dispatch not available, suggest manual push
-      throw new Error('HTTP ' + r.status);
-    })
-    .catch(function(e) {
-      addLog('Could not auto-trigger deploy. Push to ' + branch + ' to trigger it.', 'info');
-      addLog('git push origin ' + branch, 'info');
-      deployStatus.textContent = 'manual push needed';
-      btn.disabled = false;
     });
   });
 

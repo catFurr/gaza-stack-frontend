@@ -1,25 +1,13 @@
 ---
 import SetupLayout from '../../layouts/SetupLayout.astro';
 ---
-<SetupLayout step={9} title="Add workflows" subtitle="We'll create a pull request with the GitHub Actions workflows your repo needs.">
-  <div class="space-y-6">
-    <!-- Deploy workflow -->
-    <div>
-      <div class="flex items-center justify-between mb-1.5">
-        <span class="text-sm font-medium">.github/workflows/deploy.yml</span>
-        <button id="copy-deploy" class="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">Copy</button>
-      </div>
-      <pre id="deploy-yaml" class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 text-xs font-mono text-zinc-300 overflow-x-auto whitespace-pre max-h-64 overflow-y-auto"></pre>
+<SetupLayout step={9} title="Add provision workflow" subtitle="We'll create a pull request with the GitHub Actions workflow to set up your server.">
+  <div>
+    <div class="flex items-center justify-between mb-1.5">
+      <span class="text-sm font-medium">.github/workflows/provision.yml</span>
+      <button id="copy-provision" class="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">Copy</button>
     </div>
-
-    <!-- Provision workflow -->
-    <div>
-      <div class="flex items-center justify-between mb-1.5">
-        <span class="text-sm font-medium">.github/workflows/provision.yml</span>
-        <button id="copy-provision" class="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">Copy</button>
-      </div>
-      <pre id="provision-yaml" class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 text-xs font-mono text-zinc-300 overflow-x-auto whitespace-pre max-h-64 overflow-y-auto"></pre>
-    </div>
+    <pre id="provision-yaml" class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 text-xs font-mono text-zinc-300 overflow-x-auto whitespace-pre max-h-80 overflow-y-auto"></pre>
   </div>
 
   <div class="mt-6 flex items-center gap-3">
@@ -29,7 +17,7 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
     </button>
     <button id="check-workflows-btn"
       class="px-4 py-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-sm hover:border-zinc-700 transition-colors">
-      Check workflows
+      Check workflow
     </button>
   </div>
 
@@ -42,42 +30,12 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
   var repo = state.repoFullName || '';
   var repoName = repo.split('/')[1] || '';
   var domain = state.domain || 'example.com';
-  var buildCommand = state.buildCommand || 'bun run build';
-  var outputDir = state.outputDir || 'dist';
-  var branch = state.defaultBranch || 'main';
   var token = state.githubPat || '';
   var btn = document.getElementById('next-btn');
-
-  // Detect package manager from build command
-  var pm = 'npm';
-  if (buildCommand.indexOf('bun') === 0) pm = 'bun';
-  else if (buildCommand.indexOf('pnpm') === 0) pm = 'pnpm';
-  else if (buildCommand.indexOf('yarn') === 0) pm = 'yarn';
-
-  var setupStep, installCmd;
-  switch (pm) {
-    case 'bun':
-      setupStep = '      - uses: oven-sh/setup-bun@v2';
-      installCmd = 'bun install';
-      break;
-    case 'pnpm':
-      setupStep = '      - uses: pnpm/action-setup@v4\n      - uses: actions/setup-node@v4\n        with:\n          node-version: 22\n          cache: pnpm';
-      installCmd = 'pnpm install --frozen-lockfile';
-      break;
-    case 'yarn':
-      setupStep = '      - uses: actions/setup-node@v4\n        with:\n          node-version: 22\n          cache: yarn';
-      installCmd = 'yarn install --frozen-lockfile';
-      break;
-    default:
-      setupStep = '      - uses: actions/setup-node@v4\n        with:\n          node-version: 22\n          cache: npm';
-      installCmd = 'npm ci';
-  }
 
   var hasAnthropic = !!state.anthropicApiKey;
   var hasOpenai = !!state.openaiApiKey;
 
-  var ghPrSha = '$' + '{{ github.event.pull_request.head.sha || github.sha }}';
-  var ghHead = '$' + '{{ github.event.pull_request.head.ref }}';
   var sVPS_SSH = '$' + '{{ secrets.VPS_SSH_KEY }}';
   var sVPS_HOST = '$' + '{{ secrets.VPS_HOST }}';
   var sCF_TOKEN = '$' + '{{ secrets.CLOUDFLARE_API_TOKEN }}';
@@ -85,47 +43,8 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
   var sANTHROPIC = '$' + '{{ secrets.ANTHROPIC_API_KEY }}';
   var sOPENAI = '$' + '{{ secrets.OPENAI_API_KEY }}';
   var ghActor = '$' + '{{ github.actor }}';
-  var envExpr = "$" + "{{ github.ref == 'refs/heads/" + branch + "' && 'production' || 'preview' }}";
 
-  // KON_REPOS embedded directly in the workflow
   var konReposVal = JSON.stringify([{ name: repoName, url: 'https://github.com/' + repo }]);
-
-  var deployYaml = [
-    'name: Build & Deploy',
-    'on:',
-    '  push:',
-    '    branches: [' + branch + ']',
-    '  pull_request:',
-    '  workflow_dispatch:',
-    '',
-    'jobs:',
-    '  build:',
-    '    runs-on: ubuntu-latest',
-    '    steps:',
-    '      - uses: actions/checkout@v4',
-    setupStep,
-    '      - run: ' + installCmd,
-    '      - run: ' + buildCommand,
-    '      - uses: actions/upload-artifact@v4',
-    '        with:',
-    '          name: build',
-    '          path: ' + outputDir + '/',
-    '',
-    '  deploy:',
-    '    needs: build',
-    '    permissions:',
-    '      pull-requests: write',
-    '    uses: catFurr/kon/.github/workflows/deploy.yml@main',
-    '    with:',
-    '      domain: ' + domain,
-    '      artifact_name: build',
-    '      environment: ' + envExpr,
-    '      branch_slug: ' + ghHead,
-    '      sha: ' + ghPrSha,
-    '    secrets:',
-    '      VPS_SSH_KEY: ' + sVPS_SSH,
-    '      VPS_HOST: ' + sVPS_HOST,
-  ].join('\n');
 
   var provisionYaml = [
     'name: Provision Server',
@@ -182,17 +101,9 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
     '          ANSIBLE_HOST_KEY_CHECKING: "false"',
   ].join('\n');
 
-  document.getElementById('deploy-yaml').textContent = deployYaml;
   document.getElementById('provision-yaml').textContent = provisionYaml;
 
-  // Copy buttons
-  document.getElementById('copy-deploy').addEventListener('click', function() {
-    navigator.clipboard.writeText(deployYaml);
-    this.textContent = 'Copied!';
-    var self = this;
-    setTimeout(function() { self.textContent = 'Copy'; }, 1500);
-  });
-
+  // Copy button
   document.getElementById('copy-provision').addEventListener('click', function() {
     navigator.clipboard.writeText(provisionYaml);
     this.textContent = 'Copied!';
@@ -204,6 +115,17 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
   var checkBtn = document.getElementById('check-workflows-btn');
   var msgEl = document.getElementById('pr-msg');
 
+  // Show existing PR if already created
+  var existingPrUrl = GS.val('workflowPrUrl');
+  var existingPrNum = GS.val('workflowPrNumber');
+  if (existingPrUrl) {
+    msgEl.classList.remove('hidden');
+    msgEl.innerHTML = '<div class="text-sm"><span class="text-emerald-400">&#10003;</span> Pull request: <a href="' + existingPrUrl + '" target="_blank" rel="noopener" class="text-emerald-400 hover:underline">#' + existingPrNum + '</a></div>' +
+      '<p class="text-xs text-zinc-500 mt-1">Merge the PR, then continue to the next step.</p>';
+    prBtn.textContent = 'Re-create PR';
+    btn.disabled = false;
+  }
+
   function ghApi(method, path, body) {
     var opts = {
       method: method,
@@ -213,7 +135,15 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
     return fetch('https://api.github.com' + path, opts);
   }
 
-  // Create PR with workflow files
+  // Detect default branch
+  var branch = 'main';
+  ghApi('GET', '/repos/' + repo).then(function(r) {
+    if (r.ok) return r.json();
+  }).then(function(data) {
+    if (data && data.default_branch) branch = data.default_branch;
+  }).catch(function() {});
+
+  // Create PR with workflow file
   prBtn.addEventListener('click', async function() {
     if (!token || !repo) return;
 
@@ -222,15 +152,12 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
     msgEl.classList.add('hidden');
 
     try {
-      // 1. Get the SHA of the default branch
       var refRes = await ghApi('GET', '/repos/' + repo + '/git/ref/heads/' + branch);
       if (!refRes.ok) throw new Error('Cannot read default branch');
       var refData = await refRes.json();
       var baseSha = refData.object.sha;
 
-      // 2. Create a new branch
       var prBranch = 'gaza-stack-setup';
-      // Delete existing branch if present (ignore errors)
       await ghApi('DELETE', '/repos/' + repo + '/git/refs/heads/' + prBranch).catch(function() {});
 
       var branchRes = await ghApi('POST', '/repos/' + repo + '/git/refs', {
@@ -239,9 +166,7 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
       });
       if (!branchRes.ok) throw new Error('Failed to create branch');
 
-      // 3. Create/update workflow files on the new branch
       async function createOrUpdateFile(path, content) {
-        // Check if file exists
         var existRes = await ghApi('GET', '/repos/' + repo + '/contents/' + path + '?ref=' + prBranch);
         var body = {
           message: 'Add ' + path.split('/').pop(),
@@ -256,15 +181,22 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
         if (!putRes.ok) throw new Error('Failed to create ' + path);
       }
 
-      await createOrUpdateFile('.github/workflows/deploy.yml', deployYaml);
       await createOrUpdateFile('.github/workflows/provision.yml', provisionYaml);
 
-      // 4. Create PR
+      // Close any existing PR from this branch
+      var existingPrs = await ghApi('GET', '/repos/' + repo + '/pulls?head=' + repo.split('/')[0] + ':' + prBranch + '&state=open');
+      if (existingPrs.ok) {
+        var prs = await existingPrs.json();
+        for (var i = 0; i < prs.length; i++) {
+          await ghApi('PATCH', '/repos/' + repo + '/pulls/' + prs[i].number, { state: 'closed' });
+        }
+      }
+
       var prRes = await ghApi('POST', '/repos/' + repo + '/pulls', {
-        title: 'Add Gaza Stack deployment workflows',
+        title: 'Add Gaza Stack provision workflow',
         head: prBranch,
         base: branch,
-        body: '## Gaza Stack Setup\n\nAdds GitHub Actions workflows for:\n- **Build & Deploy** — builds on push/PR, deploys via kon\n- **Provision Server** — sets up the VPS with nginx, SSL, and dev tools\n\nGenerated by [Gaza Stack](https://github.com/catFurr/kon) setup wizard.',
+        body: '## Gaza Stack Setup\n\nAdds a GitHub Actions workflow for:\n- **Provision Server** \u2014 sets up the VPS with nginx, SSL, and dev session tools\n\nAfter merging, go to Actions and run the **Provision Server** workflow.\n\nGenerated by [Gaza Stack](https://github.com/catFurr/kon) setup wizard.',
       });
 
       if (!prRes.ok) {
@@ -273,7 +205,7 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
       }
 
       var prData = await prRes.json();
-      GS.set({ workflowPrUrl: prData.html_url, workflowPrNumber: prData.number });
+      GS.set({ workflowPrUrl: prData.html_url, workflowPrNumber: prData.number, defaultBranch: branch });
 
       msgEl.classList.remove('hidden');
       msgEl.innerHTML = '<div class="text-sm"><span class="text-emerald-400">&#10003;</span> Pull request created: <a href="' + prData.html_url + '" target="_blank" rel="noopener" class="text-emerald-400 hover:underline">#' + prData.number + '</a></div>' +
@@ -289,42 +221,28 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
     }
   });
 
-  // Check if workflows exist in repo (after PR merge)
+  // Check if workflow exists (after PR merge)
   checkBtn.addEventListener('click', async function() {
     checkBtn.disabled = true;
     checkBtn.textContent = 'Checking...';
     msgEl.classList.add('hidden');
 
     try {
-      var deployRes = await ghApi('GET', '/repos/' + repo + '/contents/.github/workflows/deploy.yml?ref=' + branch);
-      var provisionRes = await ghApi('GET', '/repos/' + repo + '/contents/.github/workflows/provision.yml?ref=' + branch);
-
-      var deployOk = deployRes.ok;
-      var provisionOk = provisionRes.ok;
+      var res = await ghApi('GET', '/repos/' + repo + '/contents/.github/workflows/provision.yml?ref=' + branch);
 
       msgEl.classList.remove('hidden');
-      var html = '<div class="space-y-1">';
-      html += '<div class="flex items-center gap-2 text-sm">' +
-        (deployOk ? '<span class="text-emerald-400">&#10003;</span>' : '<span class="text-red-400">&#10007;</span>') +
-        ' deploy.yml</div>';
-      html += '<div class="flex items-center gap-2 text-sm">' +
-        (provisionOk ? '<span class="text-emerald-400">&#10003;</span>' : '<span class="text-red-400">&#10007;</span>') +
-        ' provision.yml</div>';
-      html += '</div>';
-
-      if (!deployOk || !provisionOk) {
-        html += '<p class="text-xs text-zinc-500 mt-2">Merge the pull request first, then check again.</p>';
+      if (res.ok) {
+        msgEl.innerHTML = '<div class="flex items-center gap-2 text-sm"><span class="text-emerald-400">&#10003;</span> provision.yml found on ' + branch + '</div>';
+        btn.disabled = false;
+      } else {
+        msgEl.innerHTML = '<p class="text-xs text-zinc-500">Workflow not found on ' + branch + '. Merge the pull request first, then check again.</p>';
       }
-
-      msgEl.innerHTML = html;
-      btn.disabled = !(deployOk && provisionOk);
-
     } catch (e) {
       msgEl.classList.remove('hidden');
       msgEl.innerHTML = '<p class="text-sm text-red-400">Error: ' + e.message + '</p>';
     } finally {
       checkBtn.disabled = false;
-      checkBtn.textContent = 'Check workflows';
+      checkBtn.textContent = 'Check workflow';
     }
   });
 

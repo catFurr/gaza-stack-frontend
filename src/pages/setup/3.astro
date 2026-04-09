@@ -37,6 +37,7 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
   var state = GS.get();
   var domain = state.domain || 'example.com';
   var ipv4 = state.ipv4 || '0.0.0.0';
+  var ipv6 = state.ipv6 || '';
   var btn = document.getElementById('next-btn');
 
   document.getElementById('dns-link').href = 'https://dash.cloudflare.com/?search=' + domain;
@@ -45,6 +46,10 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
     { type: 'A', name: domain,          content: ipv4 },
     { type: 'A', name: '*.' + domain,   content: ipv4 },
   ];
+  if (ipv6) {
+    records.push({ type: 'AAAA', name: domain,        content: ipv6 });
+    records.push({ type: 'AAAA', name: '*.' + domain,  content: ipv6 });
+  }
 
   var table = document.getElementById('dns-table');
   records.forEach(function(r, i) {
@@ -74,7 +79,7 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
   function setRecStatus(i, ok, text) {
     var el = document.getElementById('rec-status-' + i);
     el.textContent = text;
-    el.className = 'text-xs ' + (ok ? 'text-emerald-400' : 'text-zinc-500');
+    el.className = 'text-xs ' + (ok ? 'text-emerald-400' : 'text-amber-400');
   }
 
   function checkDNS() {
@@ -88,23 +93,40 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
       { type: 'A', name: domain,        expect: ipv4, idx: 0 },
       { type: 'A', name: wildcardTest,   expect: ipv4, idx: 1 },
     ];
+    if (ipv6) {
+      checks.push({ type: 'AAAA', name: domain,       expect: ipv6, idx: 2 });
+      checks.push({ type: 'AAAA', name: wildcardTest,  expect: ipv6, idx: 3 });
+    }
 
     var allGood = true;
     Promise.all(checks.map(function(c) {
       return dnsLookup(c.name, c.type).then(function(found) {
         var ok = found.includes(c.expect);
         if (!ok) allGood = false;
-        setRecStatus(c.idx, ok, ok ? '\u2713 live' : '\u2717 not found');
+        if (ok) {
+          setRecStatus(c.idx, true, '\u2713 live');
+        } else if (found.length > 0) {
+          setRecStatus(c.idx, false, '\u2717 points to ' + found[0]);
+        } else {
+          setRecStatus(c.idx, false, '\u2717 not found');
+        }
       });
     }))
     .then(function() {
+      msgEl.classList.remove('hidden');
       if (allGood) {
         btn.disabled = false;
-        msgEl.classList.remove('hidden');
-        msgEl.innerHTML = '<p class="text-sm text-emerald-400">DNS is configured and propagated.</p>';
+        msgEl.innerHTML = '<p class="text-sm text-emerald-400">\u2713 DNS is configured and propagated.</p>';
       } else {
-        msgEl.classList.remove('hidden');
-        msgEl.innerHTML = '<p class="text-xs text-zinc-500">DNS can take a few minutes to propagate. Add the records above, then check again.</p>';
+        msgEl.innerHTML =
+          '<div class="bg-amber-950/30 border border-amber-900/50 rounded-lg p-4 space-y-2">' +
+            '<p class="text-sm text-amber-400 font-medium">\u26a0 Some DNS records are not resolving</p>' +
+            '<ul class="text-xs text-zinc-400 space-y-1.5 mt-2">' +
+              '<li>&bull; Make sure proxy is <strong class="text-zinc-300">off</strong> (grey cloud icon, DNS only) in Cloudflare</li>' +
+              '<li>&bull; Check that record values match the table above exactly</li>' +
+              '<li>&bull; DNS propagation can take a few minutes &mdash; try again shortly</li>' +
+            '</ul>' +
+          '</div>';
       }
     })
     .finally(function() {

@@ -2,24 +2,43 @@
 import SetupLayout from '../../layouts/SetupLayout.astro';
 ---
 <SetupLayout step={4} title="Connect GitHub" subtitle="Create a Personal Access Token so we can manage repos and workflows.">
-  <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 mb-6">
-    <p class="text-sm font-medium mb-2">Required token permissions:</p>
+  <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 mb-4">
+    <p class="text-sm font-medium mb-2">Required permissions <span class="text-xs text-zinc-500 font-normal">(fine-grained token)</span></p>
+    <p class="text-xs text-zinc-500 mb-2">Under <strong class="text-zinc-300">Repository permissions</strong>:</p>
     <ul class="text-sm text-zinc-400 space-y-1">
-      <li>&bull; <code class="text-zinc-300">repo</code> &mdash; full access</li>
-      <li>&bull; <code class="text-zinc-300">workflow</code> &mdash; update workflows</li>
-      <li>&bull; <code class="text-zinc-300">admin:repo_hook</code> &mdash; manage hooks</li>
+      <li>&bull; <code class="text-zinc-300">Actions</code> &mdash; Read and write</li>
+      <li>&bull; <code class="text-zinc-300">Contents</code> &mdash; Read and write</li>
+      <li>&bull; <code class="text-zinc-300">Pull requests</code> &mdash; Read and write</li>
+      <li>&bull; <code class="text-zinc-300">Secrets</code> &mdash; Read and write</li>
+      <li>&bull; <code class="text-zinc-300">Workflows</code> &mdash; Read and write</li>
     </ul>
   </div>
 
-  <a href="https://github.com/settings/tokens/new?scopes=repo,workflow,admin:repo_hook&description=Gaza+Stack+Setup" target="_blank" rel="noopener"
-    class="inline-flex items-center gap-2 px-4 py-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-sm hover:border-zinc-700 transition-colors mb-6">
-    Create token on GitHub <span class="text-zinc-500">&nearr;</span>
+  <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener"
+    class="inline-flex items-center gap-2 px-4 py-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-sm hover:border-zinc-700 transition-colors mb-4">
+    Create fine-grained token <span class="text-zinc-500">&nearr;</span>
   </a>
+
+  <details class="mb-6">
+    <summary class="text-xs text-zinc-500 hover:text-zinc-300 cursor-pointer transition-colors">
+      Using a classic token instead? &darr;
+    </summary>
+    <div class="mt-3 bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+      <p class="text-sm font-medium mb-2">Required scopes:</p>
+      <ul class="text-sm text-zinc-400 space-y-1">
+        <li>&bull; <code class="text-zinc-300">repo</code> &mdash; full access</li>
+        <li>&bull; <code class="text-zinc-300">workflow</code> &mdash; update workflows</li>
+        <li>&bull; <code class="text-zinc-300">admin:repo_hook</code> &mdash; manage hooks</li>
+      </ul>
+      <a href="https://github.com/settings/tokens/new?scopes=repo,workflow,admin:repo_hook&description=Gaza+Stack+Setup" target="_blank" rel="noopener"
+        class="text-xs text-emerald-400 hover:underline mt-2 inline-block">Create classic token &nearr;</a>
+    </div>
+  </details>
 
   <div>
     <label for="pat" class="block text-sm font-medium mb-1.5">Personal Access Token</label>
-    <input id="pat" type="password" placeholder="ghp_..."
-      class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500/50 placeholder-zinc-600 font-mono" />
+    <input id="pat" type="text" autocomplete="off" placeholder="github_pat_... or ghp_..."
+      class="secret-input w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500/50 placeholder-zinc-600 font-mono" />
   </div>
 
   <button id="verify-btn"
@@ -41,15 +60,21 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
 
   pat.value = GS.val('githubPat');
 
-  var requiredScopes = ['repo', 'workflow', 'admin:repo_hook'];
+  var classicScopes = ['repo', 'workflow', 'admin:repo_hook'];
 
-  function showScopeStatus(scopes) {
+  function getTokenType(token) {
+    if (token.startsWith('github_pat_')) return 'fine-grained';
+    if (token.startsWith('ghp_')) return 'classic';
+    return 'unknown';
+  }
+
+  function showClassicScopeStatus(scopes) {
     scopeResult.classList.remove('hidden');
     var scopeList = scopes.split(',').map(function(s) { return s.trim(); });
     var html = '<div class="space-y-1">';
     var allOk = true;
 
-    requiredScopes.forEach(function(req) {
+    classicScopes.forEach(function(req) {
       var has = scopeList.some(function(s) { return s === req; });
       if (has) {
         html += '<div class="flex items-center gap-2 text-xs"><span class="text-emerald-400">&#10003;</span> <code>' + req + '</code></div>';
@@ -62,6 +87,12 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
     html += '</div>';
     scopeResult.innerHTML = html;
     return allOk;
+  }
+
+  function showFineGrainedInfo() {
+    scopeResult.classList.remove('hidden');
+    scopeResult.innerHTML = '<p class="text-xs text-zinc-500">Fine-grained token detected &mdash; make sure you enabled the required repository permissions listed above.</p>';
+    return true;
   }
 
   // If already verified, show it
@@ -92,7 +123,13 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
       result.innerHTML = '<div class="flex items-center gap-2 text-sm"><span class="text-emerald-400">&#10003;</span> Connected as <strong>@' + data.user.login + '</strong></div>';
       GS.set({ githubPat: token, githubUser: data.user.login });
 
-      var scopesOk = showScopeStatus(data.scopes);
+      var tokenType = getTokenType(token);
+      var scopesOk;
+      if (tokenType === 'classic') {
+        scopesOk = showClassicScopeStatus(data.scopes);
+      } else {
+        scopesOk = showFineGrainedInfo();
+      }
       btn.disabled = !scopesOk;
     })
     .catch(function(e) {

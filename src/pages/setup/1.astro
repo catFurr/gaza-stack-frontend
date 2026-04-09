@@ -15,6 +15,13 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
         class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500/50 placeholder-zinc-600" />
       <p class="text-xs text-zinc-500 mt-1.5">From your Hostinger VPS dashboard</p>
     </div>
+
+    <div>
+      <label for="ipv6" class="block text-sm font-medium mb-1.5">IPv6 Address <span class="text-zinc-500 font-normal">(optional)</span></label>
+      <input id="ipv6" type="text" placeholder="2001:db8::1"
+        class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500/50 placeholder-zinc-600" />
+      <p class="text-xs text-zinc-500 mt-1.5">If your VPS has one &mdash; enables AAAA DNS records</p>
+    </div>
   </div>
 
   <!-- SSH Key Setup -->
@@ -59,29 +66,19 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
       <p class="text-xs text-zinc-500 mt-1.5">Path to the private key on your machine</p>
     </div>
   </div>
-
-  <!-- SSH Config -->
-  <div class="mt-8 border-t border-zinc-800 pt-8">
-    <h2 class="text-sm font-semibold mb-4">SSH Config</h2>
-    <p class="text-xs text-zinc-400 mb-3">Add this to <code class="text-zinc-300">~/.ssh/config</code> for easy server access:</p>
-    <div class="flex items-center justify-between mb-1.5">
-      <span class="text-sm font-medium font-mono" id="ssh-alias-label"></span>
-      <button id="copy-config" class="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">Copy</button>
-    </div>
-    <pre id="ssh-config" class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 text-sm font-mono text-zinc-300 overflow-x-auto whitespace-pre"></pre>
-    <p class="text-xs text-zinc-500 mt-2">Then test with: <code class="text-zinc-300">ssh <span id="ssh-alias-test"></span></code></p>
-  </div>
 </SetupLayout>
 
 <script is:inline>
 (function() {
   var ipv4 = document.getElementById('ipv4');
+  var ipv6 = document.getElementById('ipv6');
   var keyPath = document.getElementById('ssh-key-path');
   var keyContent = document.getElementById('ssh-key-content');
   var btn = document.getElementById('next-btn');
 
   // Restore state
   ipv4.value = GS.val('ipv4');
+  ipv6.value = GS.val('ipv6');
   keyPath.value = GS.val('sshKeyPath') || '~/.ssh/id_ed25519';
   keyContent.value = GS.val('sshKeyContent');
 
@@ -93,22 +90,6 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
   }
   keyPath.addEventListener('input', updateCmds);
   updateCmds();
-
-  // Update SSH config
-  function updateSSHConfig() {
-    var ip = ipv4.value.trim() || '0.0.0.0';
-    var domain = GS.val('domain');
-    var alias = domain ? domain.split('.')[0] : 'myserver';
-    var path = keyPath.value.trim() || '~/.ssh/id_ed25519';
-
-    document.getElementById('ssh-alias-label').textContent = 'Host ' + alias;
-    document.getElementById('ssh-alias-test').textContent = alias;
-    document.getElementById('ssh-config').textContent =
-      'Host ' + alias + '\n  HostName ' + ip + '\n  User root\n  IdentityFile ' + path;
-  }
-  ipv4.addEventListener('input', updateSSHConfig);
-  keyPath.addEventListener('input', updateSSHConfig);
-  updateSSHConfig();
 
   // Copy helpers
   function setupCopy(btnId, getTextFn) {
@@ -122,7 +103,6 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
   setupCopy('copy-keygen', function() { return document.getElementById('keygen-cmd').textContent; });
   setupCopy('copy-pubkey', function() { return document.getElementById('pubkey-cmd').textContent; });
   setupCopy('copy-privkey', function() { return document.getElementById('privkey-cmd').textContent; });
-  setupCopy('copy-config', function() { return document.getElementById('ssh-config').textContent; });
 
   // Validation
   var isIPv4 = function(s) { return /^(\d{1,3}\.){3}\d{1,3}$/.test(s) && s.split('.').every(function(n) { return +n >= 0 && +n <= 255; }); };
@@ -142,9 +122,9 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
   btn.addEventListener('click', function() {
     GS.set({
       ipv4: ipv4.value.trim(),
+      ipv6: ipv6.value.trim(),
       sshKeyPath: keyPath.value.trim() || '~/.ssh/id_ed25519',
       sshKeyContent: keyContent.value.trim(),
-      sshAlias: (GS.val('domain') || 'myserver').split('.')[0],
     });
     window.location.href = btn.dataset.href;
   });

@@ -1,7 +1,7 @@
 ---
 import SetupLayout from '../../layouts/SetupLayout.astro';
 ---
-<SetupLayout step={7} title="Describe your infra" subtitle="Select the repository you want to deploy. Static sites only for now.">
+<SetupLayout step={7} title="Select your project" subtitle="Choose the repository you'll work on in dev sessions.">
   <div class="space-y-4">
     <div>
       <label for="repo-select" class="block text-sm font-medium mb-1.5">Repository</label>
@@ -12,21 +12,10 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
     </div>
 
     <div>
-      <label for="build-cmd" class="block text-sm font-medium mb-1.5">Build command</label>
-      <input id="build-cmd" type="text" placeholder="bun run build"
+      <label for="dev-cmd" class="block text-sm font-medium mb-1.5">Dev command <span class="text-zinc-500 font-normal">(optional)</span></label>
+      <input id="dev-cmd" type="text" placeholder="npm run dev"
         class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500/50 placeholder-zinc-600 font-mono" />
-    </div>
-
-    <div>
-      <label for="out-dir" class="block text-sm font-medium mb-1.5">Output directory</label>
-      <input id="out-dir" type="text" placeholder="dist"
-        class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500/50 placeholder-zinc-600 font-mono" />
-    </div>
-
-    <div>
-      <label for="branch" class="block text-sm font-medium mb-1.5">Default branch</label>
-      <input id="branch" type="text" placeholder="main"
-        class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500/50 placeholder-zinc-600 font-mono" />
+      <p class="text-xs text-zinc-500 mt-1.5">Auto-detected from package.json if left empty</p>
     </div>
   </div>
 </SetupLayout>
@@ -35,20 +24,15 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
 (function() {
   var state = GS.get();
   var select = document.getElementById('repo-select');
-  var buildCmd = document.getElementById('build-cmd');
-  var outDir = document.getElementById('out-dir');
-  var branch = document.getElementById('branch');
+  var devCmd = document.getElementById('dev-cmd');
   var btn = document.getElementById('next-btn');
 
-  buildCmd.value = GS.val('buildCommand') || 'bun run build';
-  outDir.value = GS.val('outputDir') || 'dist';
-  branch.value = GS.val('defaultBranch') || 'main';
+  devCmd.value = GS.val('devCommand') || '';
 
   function validate() {
-    btn.disabled = !(select.value && buildCmd.value.trim() && outDir.value.trim() && branch.value.trim());
+    btn.disabled = !select.value;
   }
 
-  // Fetch repos from GitHub
   var token = state.githubPat;
   if (!token) {
     select.innerHTML = '<option value="">No GitHub token \u2014 go back to step 4</option>';
@@ -74,17 +58,12 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
   }
 
   select.addEventListener('change', validate);
-  buildCmd.addEventListener('input', validate);
-  outDir.addEventListener('input', validate);
-  branch.addEventListener('input', validate);
   validate();
 
   btn.addEventListener('click', function() {
     GS.set({
       repoFullName: select.value,
-      buildCommand: buildCmd.value.trim(),
-      outputDir: outDir.value.trim(),
-      defaultBranch: branch.value.trim(),
+      devCommand: devCmd.value.trim(),
     });
     window.location.href = btn.dataset.href;
   });

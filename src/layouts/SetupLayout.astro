@@ -31,6 +31,13 @@ const nextHref = step < totalSteps ? `/setup/${step + 1}` : '/setup/done';
       clear() { localStorage.removeItem(this._key); }
     };
   </script>
+  <style is:inline>
+    .secret-input {
+      -webkit-text-security: disc;
+      -moz-text-security: disc;
+      text-security: disc;
+    }
+  </style>
 
   <div class="min-h-screen flex flex-col">
     <header class="px-6 py-4">
