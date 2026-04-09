@@ -67,8 +67,8 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
       installCmd = 'npm ci';
   }
 
-  var ghRef = '$' + '{{ github.ref }}';
   var ghSha = '$' + '{{ github.sha }}';
+  var ghPrSha = '$' + '{{ github.event.pull_request.head.sha || github.sha }}';
   var ghHead = '$' + '{{ github.event.pull_request.head.ref }}';
   var sVPS_SSH = '$' + '{{ secrets.VPS_SSH_KEY }}';
   var sVPS_HOST = '$' + '{{ secrets.VPS_HOST }}';
@@ -77,6 +77,7 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
   var sKON_REPOS = '$' + '{{ secrets.KON_REPOS }}';
   var sANTH = '$' + '{{ secrets.ANTHROPIC_API_KEY }}';
   var ghActor = '$' + '{{ github.actor }}';
+  var envExpr = "$" + "{{ github.ref == 'refs/heads/" + branch + "' && 'production' || 'preview' }}";
 
   var deployYaml = [
     'name: Build & Deploy',
@@ -101,13 +102,15 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
     '',
     '  deploy:',
     '    needs: build',
+    '    permissions:',
+    '      pull-requests: write',
     '    uses: catFurr/kon/.github/workflows/deploy.yml@main',
     '    with:',
     '      domain: ' + domain,
     '      artifact_name: build',
-    "      environment: " + ghRef + " == 'refs/heads/" + branch + "' && 'production' || 'preview'",
+    '      environment: ' + envExpr,
     '      branch_slug: ' + ghHead,
-    '      sha: ' + ghSha,
+    '      sha: ' + ghPrSha,
     '    secrets:',
     '      VPS_SSH_KEY: ' + sVPS_SSH,
     '      VPS_HOST: ' + sVPS_HOST,

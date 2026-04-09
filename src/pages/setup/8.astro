@@ -30,7 +30,7 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
   var konReposVal = JSON.stringify([{ name: repoName, url: 'https://github.com/' + repo }]);
 
   var secrets = [
-    { name: 'VPS_SSH_KEY',          desc: 'SSH private key content',                   auto: false, hint: 'cat ~/.ssh/id_ed25519 | pbcopy' },
+    { name: 'VPS_SSH_KEY',          desc: 'SSH private key content',                   auto: false, hint: 'cat ' + (state.sshKeyPath || '~/.ssh/id_ed25519') + ' | pbcopy' },
     { name: 'VPS_HOST',             desc: 'Server IPv4 address',                       auto: true,  value: state.ipv4 || '' },
     { name: 'CLOUDFLARE_API_TOKEN', desc: 'Cloudflare API token (Zone:DNS:Edit)',       auto: false, link: 'https://dash.cloudflare.com/profile/api-tokens' },
     { name: 'KON_GITHUB_TOKEN',     desc: 'GitHub PAT (same as step 4)',               auto: true,  value: state.githubPat || '' },
