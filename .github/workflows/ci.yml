@@ -54,6 +54,8 @@ jobs:
 
   deploy:
     needs: build
+    permissions:
+      pull-requests: write
     uses: catFurr/kon/.github/workflows/deploy.yml@main
     with:
       domain: buytelegram.store
