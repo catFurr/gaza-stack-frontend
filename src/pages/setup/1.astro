@@ -1,12 +1,12 @@
 ---
 import SetupLayout from '../../layouts/SetupLayout.astro';
 ---
-<SetupLayout step={1} title="Provision a VPS" subtitle="Create a VPS with Ubuntu on Hetzner, then enter the details below.">
-  <a href="https://tinyurl.com/pvz2ttx7" target="_blank" rel="noopener"
+<SetupLayout step={1} title="Provision a VPS" subtitle="Create a VPS with Ubuntu on Hostinger, then enter the details below.">
+  <a href="https://www.hostinger.com/vps-hosting" target="_blank" rel="noopener"
     class="inline-flex items-center gap-2 px-4 py-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-sm hover:border-zinc-700 transition-colors">
-    Get a VPS on Hetzner <span class="text-zinc-500">&nearr;</span>
+    Get a VPS on Hostinger <span class="text-zinc-500">&nearr;</span>
   </a>
-  <p class="text-xs text-zinc-500 mt-2 mb-8">Recommended: Ubuntu 24.04, CX22 or higher (~&euro;4/mo)</p>
+  <p class="text-xs text-zinc-500 mt-2 mb-8">Recommended: Ubuntu 24.04, KVM 1 or higher</p>
 
   <div class="space-y-4">
     <div>
@@ -15,35 +15,84 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
         class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500/50 placeholder-zinc-600" />
     </div>
     <div>
-      <label for="ipv6" class="block text-sm font-medium mb-1.5">IPv6 Address</label>
+      <label for="ipv6" class="block text-sm font-medium mb-1.5">IPv6 Address <span class="text-zinc-600 font-normal">(optional)</span></label>
       <input id="ipv6" type="text" placeholder="2001:db8::1"
         class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500/50 placeholder-zinc-600" />
     </div>
+
+    <div>
+      <label for="ssh-key-path" class="block text-sm font-medium mb-1.5">SSH private key path</label>
+      <input id="ssh-key-path" type="text" placeholder="~/.ssh/id_ed25519"
+        class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500/50 placeholder-zinc-600 font-mono" />
+      <p class="text-xs text-zinc-500 mt-1.5">The private key on your machine that will access the VPS</p>
+    </div>
+  </div>
+
+  <div class="mt-8 bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+    <p class="text-sm font-medium mb-2">Add your SSH public key to the VPS</p>
+    <p class="text-xs text-zinc-400 mb-3">Your public key must be in <code class="text-zinc-300">root</code>'s authorized keys on the server. Without this, deployments will fail.</p>
+    <ol class="text-xs text-zinc-400 space-y-2 list-decimal list-inside">
+      <li>Copy your public key:
+        <pre id="copy-pubkey-cmd" class="inline bg-zinc-800 rounded px-1.5 py-0.5 font-mono text-zinc-300 ml-1 cursor-pointer hover:bg-zinc-700 transition-colors" title="Click to copy"></pre>
+      </li>
+      <li>In the Hostinger panel, go to <strong class="text-zinc-300">VPS &rarr; Settings &rarr; SSH Keys</strong> and add it</li>
+      <li>Or SSH into the server and run:
+        <pre class="bg-zinc-800 rounded px-2 py-1.5 font-mono text-zinc-300 mt-1 text-[11px] overflow-x-auto">mkdir -p /root/.ssh && echo "YOUR_PUBLIC_KEY" >> /root/.ssh/authorized_keys</pre>
+      </li>
+    </ol>
   </div>
 </SetupLayout>
 
 <script is:inline>
 (function() {
-  const ipv4 = document.getElementById('ipv4');
-  const ipv6 = document.getElementById('ipv6');
-  const btn = document.getElementById('next-btn');
+  var ipv4 = document.getElementById('ipv4');
+  var ipv6 = document.getElementById('ipv6');
+  var keyPath = document.getElementById('ssh-key-path');
+  var btn = document.getElementById('next-btn');
 
   ipv4.value = GS.val('ipv4');
   ipv6.value = GS.val('ipv6');
+  keyPath.value = GS.val('sshKeyPath') || '~/.ssh/id_ed25519';
 
-  const isIPv4 = s => /^(\d{1,3}\.){3}\d{1,3}$/.test(s) && s.split('.').every(n => +n >= 0 && +n <= 255);
-  const isIPv6 = s => /^[0-9a-fA-F:]+$/.test(s) && s.includes(':');
+  // Update the copy command when key path changes
+  function updatePubkeyCmd() {
+    var path = keyPath.value.trim() || '~/.ssh/id_ed25519';
+    var pubPath = path + '.pub';
+    document.getElementById('copy-pubkey-cmd').textContent = 'cat ' + pubPath + ' | pbcopy';
+  }
+  keyPath.addEventListener('input', updatePubkeyCmd);
+  updatePubkeyCmd();
+
+  // Click to copy the pubkey command
+  document.getElementById('copy-pubkey-cmd').addEventListener('click', function() {
+    navigator.clipboard.writeText(this.textContent);
+    var orig = this.textContent;
+    this.textContent = 'Copied!';
+    var self = this;
+    setTimeout(function() { self.textContent = orig; }, 1500);
+  });
+
+  var isIPv4 = function(s) { return /^(\d{1,3}\.){3}\d{1,3}$/.test(s) && s.split('.').every(function(n) { return +n >= 0 && +n <= 255; }); };
+  var isIPv6 = function(s) { return /^[0-9a-fA-F:]+$/.test(s) && s.includes(':'); };
 
   function validate() {
-    btn.disabled = !(isIPv4(ipv4.value.trim()) && isIPv6(ipv6.value.trim()));
+    var v4ok = isIPv4(ipv4.value.trim());
+    var v6ok = ipv6.value.trim() === '' || isIPv6(ipv6.value.trim());
+    var keyOk = keyPath.value.trim().length > 0;
+    btn.disabled = !(v4ok && v6ok && keyOk);
   }
 
   ipv4.addEventListener('input', validate);
   ipv6.addEventListener('input', validate);
+  keyPath.addEventListener('input', validate);
   validate();
 
-  btn.addEventListener('click', () => {
-    GS.set({ ipv4: ipv4.value.trim(), ipv6: ipv6.value.trim() });
+  btn.addEventListener('click', function() {
+    GS.set({
+      ipv4: ipv4.value.trim(),
+      ipv6: ipv6.value.trim(),
+      sshKeyPath: keyPath.value.trim() || '~/.ssh/id_ed25519',
+    });
     window.location.href = btn.dataset.href;
   });
 })();

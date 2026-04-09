@@ -28,6 +28,7 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
   </button>
 
   <div id="gh-result" class="mt-4 hidden"></div>
+  <div id="scope-result" class="mt-2 hidden"></div>
 </SetupLayout>
 
 <script is:inline>
@@ -36,8 +37,32 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
   var btn = document.getElementById('next-btn');
   var verifyBtn = document.getElementById('verify-btn');
   var result = document.getElementById('gh-result');
+  var scopeResult = document.getElementById('scope-result');
 
   pat.value = GS.val('githubPat');
+
+  var requiredScopes = ['repo', 'workflow', 'admin:repo_hook'];
+
+  function showScopeStatus(scopes) {
+    scopeResult.classList.remove('hidden');
+    var scopeList = scopes.split(',').map(function(s) { return s.trim(); });
+    var html = '<div class="space-y-1">';
+    var allOk = true;
+
+    requiredScopes.forEach(function(req) {
+      var has = scopeList.some(function(s) { return s === req; });
+      if (has) {
+        html += '<div class="flex items-center gap-2 text-xs"><span class="text-emerald-400">&#10003;</span> <code>' + req + '</code></div>';
+      } else {
+        html += '<div class="flex items-center gap-2 text-xs"><span class="text-red-400">&#10007;</span> <code>' + req + '</code> <span class="text-zinc-500">&mdash; missing, create a new token with this scope</span></div>';
+        allOk = false;
+      }
+    });
+
+    html += '</div>';
+    scopeResult.innerHTML = html;
+    return allOk;
+  }
 
   // If already verified, show it
   if (GS.val('githubUser')) {
@@ -53,21 +78,26 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
     verifyBtn.disabled = true;
     verifyBtn.textContent = 'Verifying...';
     result.classList.remove('hidden');
+    scopeResult.classList.add('hidden');
 
     fetch('https://api.github.com/user', {
       headers: { Authorization: 'token ' + token }
     })
     .then(function(r) {
       if (!r.ok) throw new Error('Invalid token');
-      return r.json();
+      var scopes = r.headers.get('X-OAuth-Scopes') || '';
+      return r.json().then(function(user) { return { user: user, scopes: scopes }; });
     })
-    .then(function(user) {
-      result.innerHTML = '<div class="flex items-center gap-2 text-sm"><span class="text-emerald-400">&#10003;</span> Connected as <strong>@' + user.login + '</strong></div>';
-      GS.set({ githubPat: token, githubUser: user.login });
-      btn.disabled = false;
+    .then(function(data) {
+      result.innerHTML = '<div class="flex items-center gap-2 text-sm"><span class="text-emerald-400">&#10003;</span> Connected as <strong>@' + data.user.login + '</strong></div>';
+      GS.set({ githubPat: token, githubUser: data.user.login });
+
+      var scopesOk = showScopeStatus(data.scopes);
+      btn.disabled = !scopesOk;
     })
     .catch(function(e) {
       result.innerHTML = '<div class="flex items-center gap-2 text-sm text-red-400"><span>&#10007;</span> ' + e.message + '. Check your token and try again.</div>';
+      scopeResult.classList.add('hidden');
       btn.disabled = true;
     })
     .finally(function() {

@@ -1,128 +1,161 @@
 ---
 import SetupLayout from '../../layouts/SetupLayout.astro';
 ---
-<SetupLayout step={8} title="Add GitHub secrets" subtitle="These secrets are needed for deployments and server provisioning.">
-  <div id="secrets-list" class="space-y-3"></div>
+<SetupLayout step={8} title="Set GitHub secrets" subtitle="We'll automatically configure the secrets your repo needs for deployments.">
+  <script src="https://cdn.jsdelivr.net/npm/libsodium-wrappers@0.7.15/dist/modules/libsodium-wrappers.min.js"></script>
 
-  <div class="mt-6 flex items-center gap-3">
-    <button id="verify-secrets-btn"
-      class="px-4 py-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-sm hover:border-zinc-700 transition-colors">
-      Verify secrets
-    </button>
-    <a id="settings-link" href="#" target="_blank" rel="noopener"
-      class="text-sm text-zinc-500 hover:text-zinc-300 transition-colors">
-      Open repo settings &nearr;
-    </a>
+  <div class="space-y-3" id="secrets-list">
+    <!-- VPS_SSH_KEY needs manual input -->
+    <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+      <div class="flex items-center justify-between">
+        <code class="text-sm font-mono text-emerald-400">VPS_SSH_KEY</code>
+        <span id="status-ssh" class="text-xs text-zinc-600">&mdash;</span>
+      </div>
+      <p class="text-xs text-zinc-500 mt-0.5">SSH private key content for accessing your VPS</p>
+      <p class="text-xs text-zinc-600 mt-2 font-mono" id="ssh-copy-hint"></p>
+      <textarea id="ssh-key-input" rows="4" placeholder="Paste your SSH private key here (starts with -----BEGIN)"
+        class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-emerald-500/50 placeholder-zinc-600 mt-2 resize-none"></textarea>
+    </div>
+
+    <!-- Auto-filled secrets -->
+    <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+      <div class="flex items-center justify-between">
+        <code class="text-sm font-mono text-emerald-400">VPS_HOST</code>
+        <span id="status-host" class="text-xs text-zinc-600">&mdash;</span>
+      </div>
+      <p class="text-xs text-zinc-500 mt-0.5">Server IPv4 address</p>
+      <p class="text-xs text-zinc-400 font-mono mt-1" id="val-host"></p>
+    </div>
+
+    <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+      <div class="flex items-center justify-between">
+        <code class="text-sm font-mono text-emerald-400">CLOUDFLARE_API_TOKEN</code>
+        <span id="status-cf" class="text-xs text-zinc-600">&mdash;</span>
+      </div>
+      <p class="text-xs text-zinc-500 mt-0.5">Cloudflare API token for DNS &amp; SSL</p>
+      <p class="text-xs text-zinc-400 font-mono mt-1" id="val-cf"></p>
+    </div>
+
+    <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+      <div class="flex items-center justify-between">
+        <code class="text-sm font-mono text-emerald-400">KON_GITHUB_TOKEN</code>
+        <span id="status-gh" class="text-xs text-zinc-600">&mdash;</span>
+      </div>
+      <p class="text-xs text-zinc-500 mt-0.5">GitHub PAT for workflow access</p>
+      <p class="text-xs text-zinc-400 font-mono mt-1" id="val-gh"></p>
+    </div>
   </div>
 
-  <div id="verify-results" class="mt-4 hidden"></div>
+  <div class="mt-6">
+    <button id="set-secrets-btn"
+      class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-800 disabled:text-zinc-600 disabled:cursor-not-allowed text-sm font-medium rounded-lg transition-colors">
+      Set all secrets
+    </button>
+  </div>
+
+  <div id="secrets-msg" class="mt-4 hidden"></div>
 </SetupLayout>
 
 <script is:inline>
 (function() {
   var state = GS.get();
   var repo = state.repoFullName || '';
+  var token = state.githubPat || '';
   var btn = document.getElementById('next-btn');
-  var repoName = repo.split('/')[1] || '';
+  var setBtn = document.getElementById('set-secrets-btn');
+  var msgEl = document.getElementById('secrets-msg');
 
-  document.getElementById('settings-link').href = 'https://github.com/' + repo + '/settings/secrets/actions';
+  // Show values
+  document.getElementById('ssh-copy-hint').textContent = 'cat ' + (state.sshKeyPath || '~/.ssh/id_ed25519') + ' | pbcopy';
+  document.getElementById('val-host').textContent = state.ipv4 || '(not set)';
+  document.getElementById('val-cf').textContent = state.cloudflareToken ? state.cloudflareToken.slice(0, 8) + '...' + state.cloudflareToken.slice(-4) : '(not set)';
+  document.getElementById('val-gh').textContent = token ? token.slice(0, 8) + '...' + token.slice(-4) : '(not set)';
 
-  var konReposVal = JSON.stringify([{ name: repoName, url: 'https://github.com/' + repo }]);
+  var sshInput = document.getElementById('ssh-key-input');
 
-  var secrets = [
-    { name: 'VPS_SSH_KEY',          desc: 'SSH private key content',                   auto: false, hint: 'cat ' + (state.sshKeyPath || '~/.ssh/id_ed25519') + ' | pbcopy' },
-    { name: 'VPS_HOST',             desc: 'Server IPv4 address',                       auto: true,  value: state.ipv4 || '' },
-    { name: 'CLOUDFLARE_API_TOKEN', desc: 'Cloudflare API token (Zone:DNS:Edit)',       auto: false, link: 'https://dash.cloudflare.com/profile/api-tokens' },
-    { name: 'KON_GITHUB_TOKEN',     desc: 'GitHub PAT (same as step 4)',               auto: true,  value: state.githubPat || '' },
-    { name: 'KON_REPOS',            desc: 'Repos JSON array',                          auto: true,  value: konReposVal },
-    { name: 'ANTHROPIC_API_KEY',    desc: 'Anthropic API key for Claude Code sessions', auto: false },
-  ];
+  function validate() {
+    setBtn.disabled = !sshInput.value.trim();
+  }
+  sshInput.addEventListener('input', validate);
+  validate();
 
-  var list = document.getElementById('secrets-list');
+  function setStatus(id, ok, text) {
+    var el = document.getElementById(id);
+    el.textContent = text;
+    el.className = 'text-xs ' + (ok ? 'text-emerald-400' : ok === false ? 'text-red-400' : 'text-zinc-600');
+  }
 
-  secrets.forEach(function(s, i) {
-    var div = document.createElement('div');
-    div.className = 'bg-zinc-900 border border-zinc-800 rounded-lg p-4';
+  async function encryptSecret(publicKey, secretValue) {
+    await sodium.ready;
+    var key = sodium.from_base64(publicKey, sodium.base64_variants.ORIGINAL);
+    var msgBytes = new TextEncoder().encode(secretValue);
+    var encrypted = sodium.crypto_box_seal(msgBytes, key);
+    return sodium.to_base64(encrypted, sodium.base64_variants.ORIGINAL);
+  }
 
-    var html = '<div class="flex items-center justify-between">' +
-      '<code class="text-sm font-mono text-emerald-400">' + s.name + '</code>' +
-      '<span id="status-' + i + '" class="text-xs text-zinc-600">unknown</span>' +
-      '</div>' +
-      '<p class="text-xs text-zinc-500 mt-0.5">' + s.desc + '</p>';
-
-    if (s.auto) {
-      var displayVal = s.value.length > 60 ? s.value.slice(0, 60) + '...' : s.value;
-      html += '<div class="flex items-center gap-2 mt-2">' +
-        '<code class="text-xs font-mono text-zinc-400 truncate flex-1">' + displayVal + '</code>' +
-        '<button class="copy-val-btn text-xs text-zinc-500 hover:text-zinc-300 shrink-0" data-val="' + i + '">Copy</button>' +
-        '</div>';
-    } else {
-      if (s.name === 'VPS_SSH_KEY') {
-        html += '<p class="text-xs text-zinc-600 mt-2 font-mono">' + s.hint + '</p>';
-      }
-      if (s.link) {
-        html += '<a href="' + s.link + '" target="_blank" rel="noopener" class="text-xs text-zinc-500 hover:text-zinc-300 mt-1 inline-block">Create token &nearr;</a>';
-      }
-    }
-
-    div.innerHTML = html;
-    list.appendChild(div);
-  });
-
-  // Copy handlers
-  var copyValues = {};
-  secrets.forEach(function(s, i) { if (s.auto) copyValues[i] = s.value; });
-
-  document.querySelectorAll('.copy-val-btn').forEach(function(el) {
-    el.addEventListener('click', function() {
-      var idx = this.getAttribute('data-val');
-      navigator.clipboard.writeText(copyValues[idx]);
-      this.textContent = 'Copied!';
-      var self = this;
-      setTimeout(function() { self.textContent = 'Copy'; }, 1500);
+  async function setSecret(secretName, secretValue, publicKey, keyId) {
+    var encryptedValue = await encryptSecret(publicKey, secretValue);
+    var r = await fetch('https://api.github.com/repos/' + repo + '/actions/secrets/' + secretName, {
+      method: 'PUT',
+      headers: {
+        Authorization: 'token ' + token,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ encrypted_value: encryptedValue, key_id: keyId }),
     });
-  });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+  }
 
-  // Verify secrets
-  document.getElementById('verify-secrets-btn').addEventListener('click', function() {
-    var token = state.githubPat;
+  setBtn.addEventListener('click', async function() {
     if (!token || !repo) return;
 
-    this.disabled = true;
-    this.textContent = 'Checking...';
-    var self = this;
+    setBtn.disabled = true;
+    setBtn.textContent = 'Setting secrets...';
+    msgEl.classList.add('hidden');
 
-    fetch('https://api.github.com/repos/' + repo + '/actions/secrets', {
-      headers: { Authorization: 'token ' + token }
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      var existing = (data.secrets || []).map(function(s) { return s.name; });
-      var allFound = true;
-
-      secrets.forEach(function(s, i) {
-        var el = document.getElementById('status-' + i);
-        if (existing.includes(s.name)) {
-          el.textContent = '\u2713 set';
-          el.className = 'text-xs text-emerald-400';
-        } else {
-          el.textContent = '\u2717 missing';
-          el.className = 'text-xs text-red-400';
-          allFound = false;
-        }
+    try {
+      // Get repo public key
+      var keyRes = await fetch('https://api.github.com/repos/' + repo + '/actions/secrets/public-key', {
+        headers: { Authorization: 'token ' + token }
       });
+      if (!keyRes.ok) throw new Error('Failed to get repo public key (HTTP ' + keyRes.status + ')');
+      var keyData = await keyRes.json();
 
-      if (allFound) btn.disabled = false;
-    })
-    .catch(function(e) {
-      var results = document.getElementById('verify-results');
-      results.classList.remove('hidden');
-      results.innerHTML = '<p class="text-sm text-red-400">Failed to check: ' + e.message + '</p>';
-    })
-    .finally(function() {
-      self.disabled = false;
-      self.textContent = 'Verify secrets';
-    });
+      var secrets = [
+        { name: 'VPS_SSH_KEY',          value: sshInput.value.trim(),    statusId: 'status-ssh' },
+        { name: 'VPS_HOST',             value: state.ipv4 || '',         statusId: 'status-host' },
+        { name: 'CLOUDFLARE_API_TOKEN', value: state.cloudflareToken || '', statusId: 'status-cf' },
+        { name: 'KON_GITHUB_TOKEN',     value: token,                    statusId: 'status-gh' },
+      ];
+
+      var allOk = true;
+      for (var i = 0; i < secrets.length; i++) {
+        var s = secrets[i];
+        setStatus(s.statusId, null, 'setting...');
+        try {
+          await setSecret(s.name, s.value, keyData.key, keyData.key_id);
+          setStatus(s.statusId, true, '\u2713 set');
+        } catch (e) {
+          setStatus(s.statusId, false, '\u2717 failed');
+          allOk = false;
+        }
+      }
+
+      if (allOk) {
+        msgEl.classList.remove('hidden');
+        msgEl.innerHTML = '<p class="text-sm text-emerald-400">All secrets configured successfully.</p>';
+        btn.disabled = false;
+      } else {
+        msgEl.classList.remove('hidden');
+        msgEl.innerHTML = '<p class="text-sm text-red-400">Some secrets failed. Check your PAT has repo scope and try again.</p>';
+      }
+    } catch (e) {
+      msgEl.classList.remove('hidden');
+      msgEl.innerHTML = '<p class="text-sm text-red-400">Error: ' + e.message + '</p>';
+    } finally {
+      setBtn.disabled = false;
+      setBtn.textContent = 'Set all secrets';
+    }
   });
 
   btn.addEventListener('click', function() {
