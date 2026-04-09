@@ -5,19 +5,15 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
   <script src="https://cdn.jsdelivr.net/npm/libsodium-wrappers@0.7.15/dist/modules/libsodium-wrappers.min.js"></script>
 
   <div class="space-y-3" id="secrets-list">
-    <!-- VPS_SSH_KEY needs manual input -->
     <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
       <div class="flex items-center justify-between">
         <code class="text-sm font-mono text-emerald-400">VPS_SSH_KEY</code>
         <span id="status-ssh" class="text-xs text-zinc-600">&mdash;</span>
       </div>
-      <p class="text-xs text-zinc-500 mt-0.5">SSH private key content for accessing your VPS</p>
-      <p class="text-xs text-zinc-600 mt-2 font-mono" id="ssh-copy-hint"></p>
-      <textarea id="ssh-key-input" rows="4" placeholder="Paste your SSH private key here (starts with -----BEGIN)"
-        class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-emerald-500/50 placeholder-zinc-600 mt-2 resize-none"></textarea>
+      <p class="text-xs text-zinc-500 mt-0.5">SSH private key from step 1</p>
+      <p class="text-xs text-zinc-400 font-mono mt-1" id="val-ssh"></p>
     </div>
 
-    <!-- Auto-filled secrets -->
     <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
       <div class="flex items-center justify-between">
         <code class="text-sm font-mono text-emerald-400">VPS_HOST</code>
@@ -46,6 +42,10 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
     </div>
   </div>
 
+  <div id="missing-msg" class="mt-4 hidden">
+    <p class="text-sm text-red-400">Some values are missing. Go back to previous steps to fill them in.</p>
+  </div>
+
   <div class="mt-6">
     <button id="set-secrets-btn"
       class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-800 disabled:text-zinc-600 disabled:cursor-not-allowed text-sm font-medium rounded-lg transition-colors">
@@ -65,19 +65,34 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
   var setBtn = document.getElementById('set-secrets-btn');
   var msgEl = document.getElementById('secrets-msg');
 
-  // Show values
-  document.getElementById('ssh-copy-hint').textContent = 'cat ' + (state.sshKeyPath || '~/.ssh/id_ed25519') + ' | pbcopy';
-  document.getElementById('val-host').textContent = state.ipv4 || '(not set)';
-  document.getElementById('val-cf').textContent = state.cloudflareToken ? state.cloudflareToken.slice(0, 8) + '...' + state.cloudflareToken.slice(-4) : '(not set)';
-  document.getElementById('val-gh').textContent = token ? token.slice(0, 8) + '...' + token.slice(-4) : '(not set)';
+  var secrets = [
+    { name: 'VPS_SSH_KEY',          value: state.sshKeyContent || '',    statusId: 'status-ssh',  valId: 'val-ssh' },
+    { name: 'VPS_HOST',             value: state.ipv4 || '',             statusId: 'status-host', valId: 'val-host' },
+    { name: 'CLOUDFLARE_API_TOKEN', value: state.cloudflareToken || '',  statusId: 'status-cf',   valId: 'val-cf' },
+    { name: 'KON_GITHUB_TOKEN',     value: token,                       statusId: 'status-gh',   valId: 'val-gh' },
+  ];
 
-  var sshInput = document.getElementById('ssh-key-input');
+  // Show values (masked for sensitive ones)
+  var allPresent = true;
+  secrets.forEach(function(s) {
+    var display;
+    if (!s.value) {
+      display = '(not set)';
+      allPresent = false;
+    } else if (s.name === 'VPS_HOST') {
+      display = s.value;
+    } else if (s.name === 'VPS_SSH_KEY') {
+      display = s.value.split('\n')[0].slice(0, 30) + '...';
+    } else {
+      display = s.value.slice(0, 8) + '...' + s.value.slice(-4);
+    }
+    document.getElementById(s.valId).textContent = display;
+  });
 
-  function validate() {
-    setBtn.disabled = !sshInput.value.trim();
+  if (!allPresent) {
+    document.getElementById('missing-msg').classList.remove('hidden');
+    setBtn.disabled = true;
   }
-  sshInput.addEventListener('input', validate);
-  validate();
 
   function setStatus(id, ok, text) {
     var el = document.getElementById(id);
@@ -114,19 +129,11 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
     msgEl.classList.add('hidden');
 
     try {
-      // Get repo public key
       var keyRes = await fetch('https://api.github.com/repos/' + repo + '/actions/secrets/public-key', {
         headers: { Authorization: 'token ' + token }
       });
       if (!keyRes.ok) throw new Error('Failed to get repo public key (HTTP ' + keyRes.status + ')');
       var keyData = await keyRes.json();
-
-      var secrets = [
-        { name: 'VPS_SSH_KEY',          value: sshInput.value.trim(),    statusId: 'status-ssh' },
-        { name: 'VPS_HOST',             value: state.ipv4 || '',         statusId: 'status-host' },
-        { name: 'CLOUDFLARE_API_TOKEN', value: state.cloudflareToken || '', statusId: 'status-cf' },
-        { name: 'KON_GITHUB_TOKEN',     value: token,                    statusId: 'status-gh' },
-      ];
 
       var allOk = true;
       for (var i = 0; i < secrets.length; i++) {

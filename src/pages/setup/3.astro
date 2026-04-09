@@ -1,7 +1,7 @@
 ---
 import SetupLayout from '../../layouts/SetupLayout.astro';
 ---
-<SetupLayout step={3} title="Configure DNS" subtitle="Add DNS records pointing your domain to your server.">
+<SetupLayout step={3} title="Configure DNS" subtitle="Add these records in your Cloudflare DNS dashboard. Proxy must be off (DNS only).">
   <div class="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden mb-6">
     <table class="w-full text-sm">
       <thead>
@@ -9,22 +9,24 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
           <th class="text-left px-4 py-2 font-medium">Type</th>
           <th class="text-left px-4 py-2 font-medium">Name</th>
           <th class="text-left px-4 py-2 font-medium">Content</th>
-          <th class="text-left px-4 py-2 font-medium w-16">Status</th>
+          <th class="text-left px-4 py-2 font-medium w-20">Status</th>
         </tr>
       </thead>
       <tbody id="dns-table" class="font-mono"></tbody>
     </table>
   </div>
 
+  <a id="dns-link" href="#" target="_blank" rel="noopener"
+    class="inline-flex items-center gap-2 px-4 py-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-sm hover:border-zinc-700 transition-colors mb-4">
+    Open Cloudflare DNS <span class="text-zinc-500">&nearr;</span>
+  </a>
+
   <div class="flex items-center gap-3">
-    <button id="create-dns-btn"
-      class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-sm font-medium rounded-lg transition-colors">
-      Create records
-    </button>
     <button id="check-dns-btn"
       class="px-4 py-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-sm hover:border-zinc-700 transition-colors">
-      Verify propagation
+      Check DNS
     </button>
+    <span id="check-status" class="text-xs text-zinc-600"></span>
   </div>
 
   <div id="dns-msg" class="mt-4 hidden"></div>
@@ -34,24 +36,17 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
 (function() {
   var state = GS.get();
   var domain = state.domain || 'example.com';
-  var zoneId = state.cloudflareZoneId || '';
-  var cfToken = state.cloudflareToken || '';
   var ipv4 = state.ipv4 || '0.0.0.0';
-  var ipv6 = state.ipv6 || '';
   var btn = document.getElementById('next-btn');
 
+  document.getElementById('dns-link').href = 'https://dash.cloudflare.com/?search=' + domain;
+
   var records = [
-    { type: 'A',    name: domain,        content: ipv4 },
-    { type: 'A',    name: '*.' + domain,  content: ipv4 },
+    { type: 'A', name: domain,          content: ipv4 },
+    { type: 'A', name: '*.' + domain,   content: ipv4 },
   ];
-  if (ipv6) {
-    records.push({ type: 'AAAA', name: domain,        content: ipv6 });
-    records.push({ type: 'AAAA', name: '*.' + domain,  content: ipv6 });
-  }
 
   var table = document.getElementById('dns-table');
-  var recordStatus = {};
-
   records.forEach(function(r, i) {
     var tr = document.createElement('tr');
     tr.className = 'border-b border-zinc-800/50';
@@ -61,101 +56,12 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
       '<td class="px-4 py-2.5 text-zinc-400">' + r.content + '</td>' +
       '<td class="px-4 py-2.5"><span id="rec-status-' + i + '" class="text-xs text-zinc-600">&mdash;</span></td>';
     table.appendChild(tr);
-    recordStatus[i] = 'pending';
   });
 
-  var createBtn = document.getElementById('create-dns-btn');
   var checkBtn = document.getElementById('check-dns-btn');
-  var msg = document.getElementById('dns-msg');
+  var checkStatus = document.getElementById('check-status');
+  var msgEl = document.getElementById('dns-msg');
 
-  function cfApi(method, path, body) {
-    var opts = {
-      method: method,
-      headers: { Authorization: 'Bearer ' + cfToken, 'Content-Type': 'application/json' },
-    };
-    if (body) opts.body = JSON.stringify(body);
-    return fetch('https://api.cloudflare.com/client/v4' + path, opts).then(function(r) { return r.json(); });
-  }
-
-  function setStatus(i, ok, text) {
-    var el = document.getElementById('rec-status-' + i);
-    el.textContent = text;
-    el.className = 'text-xs ' + (ok ? 'text-emerald-400' : 'text-red-400');
-    recordStatus[i] = ok ? 'done' : 'error';
-  }
-
-  // Create DNS records via Cloudflare API
-  createBtn.addEventListener('click', function() {
-    if (!cfToken || !zoneId) {
-      msg.classList.remove('hidden');
-      msg.innerHTML = '<p class="text-sm text-red-400">Missing Cloudflare token or zone. Go back to step 2.</p>';
-      return;
-    }
-
-    createBtn.disabled = true;
-    createBtn.textContent = 'Creating...';
-    msg.classList.add('hidden');
-
-    // First, fetch existing records to avoid duplicates
-    cfApi('GET', '/zones/' + zoneId + '/dns_records?per_page=100').then(function(data) {
-      if (!data.success) throw new Error('Failed to fetch existing records');
-
-      var existing = data.result || [];
-      var promises = records.map(function(r, i) {
-        // Check if record already exists
-        var found = existing.find(function(e) {
-          return e.type === r.type && e.name === r.name && e.content === r.content;
-        });
-        if (found) {
-          setStatus(i, true, '\u2713 exists');
-          return Promise.resolve();
-        }
-
-        // Check if there's a conflicting record (same type+name, different content)
-        var conflict = existing.find(function(e) {
-          return e.type === r.type && e.name === r.name;
-        });
-
-        if (conflict) {
-          // Update existing record
-          return cfApi('PUT', '/zones/' + zoneId + '/dns_records/' + conflict.id, {
-            type: r.type, name: r.name, content: r.content, proxied: false, ttl: 1
-          }).then(function(res) {
-            if (res.success) setStatus(i, true, '\u2713 updated');
-            else setStatus(i, false, '\u2717 failed');
-          });
-        }
-
-        // Create new record
-        return cfApi('POST', '/zones/' + zoneId + '/dns_records', {
-          type: r.type, name: r.name, content: r.content, proxied: false, ttl: 1
-        }).then(function(res) {
-          if (res.success) setStatus(i, true, '\u2713 created');
-          else setStatus(i, false, '\u2717 failed');
-        });
-      });
-
-      return Promise.all(promises);
-    })
-    .then(function() {
-      var allDone = Object.keys(recordStatus).every(function(k) { return recordStatus[k] === 'done'; });
-      if (allDone) {
-        msg.classList.remove('hidden');
-        msg.innerHTML = '<p class="text-sm text-emerald-400">All DNS records configured. Verify propagation or continue.</p>';
-        btn.disabled = false;
-      }
-    })
-    .catch(function(e) {
-      msg.classList.remove('hidden');
-      msg.innerHTML = '<p class="text-sm text-red-400">Error: ' + e.message + '</p>';
-    })
-    .finally(function() {
-      createBtn.disabled = false;
-      createBtn.textContent = 'Create records';
-    });
-  });
-
-  // Verify DNS propagation
   function dnsLookup(name, type) {
     return fetch('https://cloudflare-dns.com/dns-query?name=' + encodeURIComponent(name) + '&type=' + type, {
       headers: { Accept: 'application/dns-json' }
@@ -165,43 +71,52 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
     .catch(function() { return []; });
   }
 
-  checkBtn.addEventListener('click', function() {
+  function setRecStatus(i, ok, text) {
+    var el = document.getElementById('rec-status-' + i);
+    el.textContent = text;
+    el.className = 'text-xs ' + (ok ? 'text-emerald-400' : 'text-zinc-500');
+  }
+
+  function checkDNS() {
     checkBtn.disabled = true;
     checkBtn.textContent = 'Checking...';
+    checkStatus.textContent = '';
+    msgEl.classList.add('hidden');
 
     var wildcardTest = '_gs-' + Date.now() + '.' + domain;
     var checks = [
-      { type: 'A',    name: domain,        expect: ipv4, idx: 0 },
-      { type: 'A',    name: wildcardTest,   expect: ipv4, idx: 1 },
+      { type: 'A', name: domain,        expect: ipv4, idx: 0 },
+      { type: 'A', name: wildcardTest,   expect: ipv4, idx: 1 },
     ];
-    if (ipv6) {
-      checks.push({ type: 'AAAA', name: domain,        expect: ipv6, idx: 2 });
-      checks.push({ type: 'AAAA', name: wildcardTest,   expect: ipv6, idx: 3 });
-    }
 
     var allGood = true;
     Promise.all(checks.map(function(c) {
       return dnsLookup(c.name, c.type).then(function(found) {
         var ok = found.includes(c.expect);
         if (!ok) allGood = false;
-        setStatus(c.idx, ok, ok ? '\u2713 live' : '\u2717 pending');
+        setRecStatus(c.idx, ok, ok ? '\u2713 live' : '\u2717 not found');
       });
     }))
     .then(function() {
       if (allGood) {
         btn.disabled = false;
-        msg.classList.remove('hidden');
-        msg.innerHTML = '<p class="text-sm text-emerald-400">DNS is fully propagated.</p>';
+        msgEl.classList.remove('hidden');
+        msgEl.innerHTML = '<p class="text-sm text-emerald-400">DNS is configured and propagated.</p>';
       } else {
-        msg.classList.remove('hidden');
-        msg.innerHTML = '<p class="text-xs text-zinc-500">DNS can take a few minutes to propagate. Try again shortly.</p>';
+        msgEl.classList.remove('hidden');
+        msgEl.innerHTML = '<p class="text-xs text-zinc-500">DNS can take a few minutes to propagate. Add the records above, then check again.</p>';
       }
     })
     .finally(function() {
       checkBtn.disabled = false;
-      checkBtn.textContent = 'Verify propagation';
+      checkBtn.textContent = 'Check DNS';
     });
-  });
+  }
+
+  checkBtn.addEventListener('click', checkDNS);
+
+  // Auto-check on page load
+  checkDNS();
 
   btn.addEventListener('click', function() {
     window.location.href = btn.dataset.href;

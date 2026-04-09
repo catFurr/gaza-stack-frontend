@@ -1,7 +1,7 @@
 ---
 import SetupLayout from '../../layouts/SetupLayout.astro';
 ---
-<SetupLayout step={1} title="Provision a VPS" subtitle="Create a VPS with Ubuntu on Hostinger, then enter the details below.">
+<SetupLayout step={1} title="Provision a VPS" subtitle="Create a VPS with Ubuntu on Hostinger and set up SSH access.">
   <a href="https://www.hostinger.com/vps-hosting" target="_blank" rel="noopener"
     class="inline-flex items-center gap-2 px-4 py-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-sm hover:border-zinc-700 transition-colors">
     Get a VPS on Hostinger <span class="text-zinc-500">&nearr;</span>
@@ -13,85 +13,138 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
       <label for="ipv4" class="block text-sm font-medium mb-1.5">IPv4 Address</label>
       <input id="ipv4" type="text" placeholder="203.0.113.1"
         class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500/50 placeholder-zinc-600" />
-    </div>
-    <div>
-      <label for="ipv6" class="block text-sm font-medium mb-1.5">IPv6 Address <span class="text-zinc-600 font-normal">(optional)</span></label>
-      <input id="ipv6" type="text" placeholder="2001:db8::1"
-        class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500/50 placeholder-zinc-600" />
-    </div>
-
-    <div>
-      <label for="ssh-key-path" class="block text-sm font-medium mb-1.5">SSH private key path</label>
-      <input id="ssh-key-path" type="text" placeholder="~/.ssh/id_ed25519"
-        class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500/50 placeholder-zinc-600 font-mono" />
-      <p class="text-xs text-zinc-500 mt-1.5">The private key on your machine that will access the VPS</p>
+      <p class="text-xs text-zinc-500 mt-1.5">From your Hostinger VPS dashboard</p>
     </div>
   </div>
 
-  <div class="mt-8 bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-    <p class="text-sm font-medium mb-2">Add your SSH public key to the VPS</p>
-    <p class="text-xs text-zinc-400 mb-3">Your public key must be in <code class="text-zinc-300">root</code>'s authorized keys on the server. Without this, deployments will fail.</p>
-    <ol class="text-xs text-zinc-400 space-y-2 list-decimal list-inside">
-      <li>Copy your public key:
-        <pre id="copy-pubkey-cmd" class="inline bg-zinc-800 rounded px-1.5 py-0.5 font-mono text-zinc-300 ml-1 cursor-pointer hover:bg-zinc-700 transition-colors" title="Click to copy"></pre>
-      </li>
-      <li>In the Hostinger panel, go to <strong class="text-zinc-300">VPS &rarr; Settings &rarr; SSH Keys</strong> and add it</li>
-      <li>Or SSH into the server and run:
-        <pre class="bg-zinc-800 rounded px-2 py-1.5 font-mono text-zinc-300 mt-1 text-[11px] overflow-x-auto">mkdir -p /root/.ssh && echo "YOUR_PUBLIC_KEY" >> /root/.ssh/authorized_keys</pre>
-      </li>
-    </ol>
+  <!-- SSH Key Setup -->
+  <div class="mt-8 border-t border-zinc-800 pt-8">
+    <h2 class="text-sm font-semibold mb-4">SSH Key Setup</h2>
+
+    <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 mb-6">
+      <p class="text-sm font-medium mb-2">1. Generate a key pair</p>
+      <p class="text-xs text-zinc-400 mb-2">If you don't have one already, run this in your terminal:</p>
+      <div class="flex items-center gap-2">
+        <pre id="keygen-cmd" class="flex-1 bg-zinc-950 rounded px-3 py-2 text-xs font-mono text-zinc-300 overflow-x-auto">ssh-keygen -t ed25519 -C "gaza-stack"</pre>
+        <button id="copy-keygen" class="text-xs text-zinc-500 hover:text-zinc-300 transition-colors shrink-0">Copy</button>
+      </div>
+      <p class="text-xs text-zinc-500 mt-2">Press Enter through all prompts to use defaults.</p>
+    </div>
+
+    <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 mb-6">
+      <p class="text-sm font-medium mb-2">2. Add public key to Hostinger</p>
+      <p class="text-xs text-zinc-400 mb-2">Copy your public key and paste it in the Hostinger panel:</p>
+      <div class="flex items-center gap-2 mb-2">
+        <pre id="pubkey-cmd" class="flex-1 bg-zinc-950 rounded px-3 py-2 text-xs font-mono text-zinc-300 overflow-x-auto"></pre>
+        <button id="copy-pubkey" class="text-xs text-zinc-500 hover:text-zinc-300 transition-colors shrink-0">Copy</button>
+      </div>
+      <p class="text-xs text-zinc-500">Go to <strong class="text-zinc-300">VPS &rarr; Settings &rarr; SSH Keys</strong> in the Hostinger panel and add it.</p>
+    </div>
+
+    <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 mb-6">
+      <p class="text-sm font-medium mb-2">3. Paste your private key below</p>
+      <p class="text-xs text-zinc-400 mb-2">Copy the private key content. We'll use this to set up deployments.</p>
+      <div class="flex items-center gap-2 mb-2">
+        <pre id="privkey-cmd" class="flex-1 bg-zinc-950 rounded px-3 py-2 text-xs font-mono text-zinc-300 overflow-x-auto"></pre>
+        <button id="copy-privkey" class="text-xs text-zinc-500 hover:text-zinc-300 transition-colors shrink-0">Copy</button>
+      </div>
+      <textarea id="ssh-key-content" rows="6" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----&#10;...&#10;-----END OPENSSH PRIVATE KEY-----"
+        class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-emerald-500/50 placeholder-zinc-600 resize-none mt-1"></textarea>
+    </div>
+
+    <div>
+      <label for="ssh-key-path" class="block text-sm font-medium mb-1.5">Key file path</label>
+      <input id="ssh-key-path" type="text" placeholder="~/.ssh/id_ed25519"
+        class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500/50 placeholder-zinc-600 font-mono" />
+      <p class="text-xs text-zinc-500 mt-1.5">Path to the private key on your machine</p>
+    </div>
+  </div>
+
+  <!-- SSH Config -->
+  <div class="mt-8 border-t border-zinc-800 pt-8">
+    <h2 class="text-sm font-semibold mb-4">SSH Config</h2>
+    <p class="text-xs text-zinc-400 mb-3">Add this to <code class="text-zinc-300">~/.ssh/config</code> for easy server access:</p>
+    <div class="flex items-center justify-between mb-1.5">
+      <span class="text-sm font-medium font-mono" id="ssh-alias-label"></span>
+      <button id="copy-config" class="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">Copy</button>
+    </div>
+    <pre id="ssh-config" class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 text-sm font-mono text-zinc-300 overflow-x-auto whitespace-pre"></pre>
+    <p class="text-xs text-zinc-500 mt-2">Then test with: <code class="text-zinc-300">ssh <span id="ssh-alias-test"></span></code></p>
   </div>
 </SetupLayout>
 
 <script is:inline>
 (function() {
   var ipv4 = document.getElementById('ipv4');
-  var ipv6 = document.getElementById('ipv6');
   var keyPath = document.getElementById('ssh-key-path');
+  var keyContent = document.getElementById('ssh-key-content');
   var btn = document.getElementById('next-btn');
 
+  // Restore state
   ipv4.value = GS.val('ipv4');
-  ipv6.value = GS.val('ipv6');
   keyPath.value = GS.val('sshKeyPath') || '~/.ssh/id_ed25519';
+  keyContent.value = GS.val('sshKeyContent');
 
-  // Update the copy command when key path changes
-  function updatePubkeyCmd() {
+  // Update copy commands based on key path
+  function updateCmds() {
     var path = keyPath.value.trim() || '~/.ssh/id_ed25519';
-    var pubPath = path + '.pub';
-    document.getElementById('copy-pubkey-cmd').textContent = 'cat ' + pubPath + ' | pbcopy';
+    document.getElementById('pubkey-cmd').textContent = 'cat ' + path + '.pub | pbcopy';
+    document.getElementById('privkey-cmd').textContent = 'cat ' + path + ' | pbcopy';
   }
-  keyPath.addEventListener('input', updatePubkeyCmd);
-  updatePubkeyCmd();
+  keyPath.addEventListener('input', updateCmds);
+  updateCmds();
 
-  // Click to copy the pubkey command
-  document.getElementById('copy-pubkey-cmd').addEventListener('click', function() {
-    navigator.clipboard.writeText(this.textContent);
-    var orig = this.textContent;
-    this.textContent = 'Copied!';
-    var self = this;
-    setTimeout(function() { self.textContent = orig; }, 1500);
-  });
+  // Update SSH config
+  function updateSSHConfig() {
+    var ip = ipv4.value.trim() || '0.0.0.0';
+    var domain = GS.val('domain');
+    var alias = domain ? domain.split('.')[0] : 'myserver';
+    var path = keyPath.value.trim() || '~/.ssh/id_ed25519';
 
+    document.getElementById('ssh-alias-label').textContent = 'Host ' + alias;
+    document.getElementById('ssh-alias-test').textContent = alias;
+    document.getElementById('ssh-config').textContent =
+      'Host ' + alias + '\n  HostName ' + ip + '\n  User root\n  IdentityFile ' + path;
+  }
+  ipv4.addEventListener('input', updateSSHConfig);
+  keyPath.addEventListener('input', updateSSHConfig);
+  updateSSHConfig();
+
+  // Copy helpers
+  function setupCopy(btnId, getTextFn) {
+    document.getElementById(btnId).addEventListener('click', function() {
+      navigator.clipboard.writeText(getTextFn());
+      this.textContent = 'Copied!';
+      var self = this;
+      setTimeout(function() { self.textContent = 'Copy'; }, 1500);
+    });
+  }
+  setupCopy('copy-keygen', function() { return document.getElementById('keygen-cmd').textContent; });
+  setupCopy('copy-pubkey', function() { return document.getElementById('pubkey-cmd').textContent; });
+  setupCopy('copy-privkey', function() { return document.getElementById('privkey-cmd').textContent; });
+  setupCopy('copy-config', function() { return document.getElementById('ssh-config').textContent; });
+
+  // Validation
   var isIPv4 = function(s) { return /^(\d{1,3}\.){3}\d{1,3}$/.test(s) && s.split('.').every(function(n) { return +n >= 0 && +n <= 255; }); };
-  var isIPv6 = function(s) { return /^[0-9a-fA-F:]+$/.test(s) && s.includes(':'); };
 
   function validate() {
     var v4ok = isIPv4(ipv4.value.trim());
-    var v6ok = ipv6.value.trim() === '' || isIPv6(ipv6.value.trim());
-    var keyOk = keyPath.value.trim().length > 0;
-    btn.disabled = !(v4ok && v6ok && keyOk);
+    var keyOk = keyContent.value.trim().indexOf('-----BEGIN') !== -1;
+    var pathOk = keyPath.value.trim().length > 0;
+    btn.disabled = !(v4ok && keyOk && pathOk);
   }
 
   ipv4.addEventListener('input', validate);
-  ipv6.addEventListener('input', validate);
+  keyContent.addEventListener('input', validate);
   keyPath.addEventListener('input', validate);
   validate();
 
   btn.addEventListener('click', function() {
     GS.set({
       ipv4: ipv4.value.trim(),
-      ipv6: ipv6.value.trim(),
       sshKeyPath: keyPath.value.trim() || '~/.ssh/id_ed25519',
+      sshKeyContent: keyContent.value.trim(),
+      sshAlias: (GS.val('domain') || 'myserver').split('.')[0],
     });
     window.location.href = btn.dataset.href;
   });

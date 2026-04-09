@@ -1,157 +1,79 @@
 ---
 import SetupLayout from '../../layouts/SetupLayout.astro';
 ---
-<SetupLayout step={2} title="Connect Cloudflare" subtitle="Enter your Cloudflare API token to manage DNS for your domain.">
-  <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 mb-6">
-    <p class="text-sm font-medium mb-2">Create an API token with these permissions:</p>
-    <ul class="text-sm text-zinc-400 space-y-1">
-      <li>&bull; <code class="text-zinc-300">Zone : Zone : Read</code></li>
-      <li>&bull; <code class="text-zinc-300">Zone : DNS : Edit</code></li>
-    </ul>
-    <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" rel="noopener"
-      class="inline-flex items-center gap-2 mt-3 text-sm text-zinc-500 hover:text-zinc-300 transition-colors">
-      Create token on Cloudflare <span>&nearr;</span>
-    </a>
-  </div>
+<SetupLayout step={2} title="Connect Cloudflare" subtitle="Register a domain on Cloudflare or use one you already own, then create an API token.">
+  <div class="space-y-6">
+    <!-- Domain -->
+    <div>
+      <label for="domain" class="block text-sm font-medium mb-1.5">Domain name</label>
+      <input id="domain" type="text" placeholder="mysite.com"
+        class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500/50 placeholder-zinc-600" />
+      <p class="text-xs text-zinc-500 mt-1.5">Just the domain &mdash; no https:// or trailing slash</p>
+    </div>
 
-  <div>
-    <label for="cf-token" class="block text-sm font-medium mb-1.5">API Token</label>
-    <input id="cf-token" type="password" placeholder="Paste your Cloudflare API token"
-      class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500/50 placeholder-zinc-600 font-mono" />
-  </div>
+    <!-- API Token -->
+    <div>
+      <label for="cf-token" class="block text-sm font-medium mb-1.5">Cloudflare API Token</label>
+      <input id="cf-token" type="password" placeholder="Paste your Cloudflare API token"
+        class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500/50 placeholder-zinc-600 font-mono" />
+      <p class="text-xs text-zinc-500 mt-1.5">Needs <code class="text-zinc-400">Zone:Zone:Read</code> and <code class="text-zinc-400">Zone:DNS:Edit</code> permissions</p>
+    </div>
 
-  <button id="verify-cf-btn"
-    class="mt-4 px-4 py-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-sm hover:border-zinc-700 transition-colors">
-    Verify &amp; load domains
-  </button>
-
-  <div id="cf-result" class="mt-4 hidden"></div>
-
-  <div id="domain-section" class="mt-6 hidden">
-    <label for="domain-select" class="block text-sm font-medium mb-1.5">Select a domain</label>
-    <select id="domain-select"
-      class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500/50 appearance-none cursor-pointer">
-      <option value="">Choose a domain</option>
-    </select>
-
-    <div id="domain-info" class="mt-3 hidden">
-      <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-3">
-        <div class="grid grid-cols-2 gap-2 text-xs">
-          <div>
-            <span class="text-zinc-500">Status</span>
-            <p id="zone-status" class="text-zinc-300 font-mono mt-0.5"></p>
-          </div>
-          <div>
-            <span class="text-zinc-500">Plan</span>
-            <p id="zone-plan" class="text-zinc-300 font-mono mt-0.5"></p>
-          </div>
-          <div>
-            <span class="text-zinc-500">Name servers</span>
-            <p id="zone-ns" class="text-zinc-300 font-mono mt-0.5 text-[11px]"></p>
-          </div>
+    <!-- Instructions with screenshot -->
+    <details class="group">
+      <summary class="text-sm text-zinc-400 hover:text-zinc-300 cursor-pointer transition-colors">
+        How to create the API token &darr;
+      </summary>
+      <div class="mt-3 space-y-3">
+        <ol class="text-xs text-zinc-400 space-y-2 list-decimal list-inside">
+          <li>Go to <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" rel="noopener" class="text-emerald-400 hover:underline">Cloudflare API Tokens</a></li>
+          <li>Click <strong class="text-zinc-300">Create Token</strong></li>
+          <li>Select <strong class="text-zinc-300">Create Custom Token</strong></li>
+          <li>Set permissions exactly as shown below</li>
+          <li>Under Zone Resources, select your specific domain</li>
+          <li>Click <strong class="text-zinc-300">Continue to summary</strong>, then <strong class="text-zinc-300">Create Token</strong></li>
+        </ol>
+        <div class="border border-zinc-800 rounded-lg overflow-hidden">
+          <img src="/cf-token-setup.png" alt="Cloudflare token setup: Zone:Zone:Read and Zone:DNS:Edit permissions, specific zone selected"
+            class="w-full" loading="lazy" />
         </div>
       </div>
-    </div>
+    </details>
   </div>
 </SetupLayout>
 
 <script is:inline>
 (function() {
+  var domain = document.getElementById('domain');
   var cfToken = document.getElementById('cf-token');
-  var verifyBtn = document.getElementById('verify-cf-btn');
-  var result = document.getElementById('cf-result');
-  var domainSection = document.getElementById('domain-section');
-  var domainSelect = document.getElementById('domain-select');
-  var domainInfo = document.getElementById('domain-info');
   var btn = document.getElementById('next-btn');
 
-  var zones = [];
-
+  domain.value = GS.val('domain');
   cfToken.value = GS.val('cloudflareToken');
 
-  // If already verified, restore
-  if (GS.val('domain') && GS.val('cloudflareToken')) {
-    cfToken.value = GS.val('cloudflareToken');
-    loadZones();
+  function clean(s) {
+    return s.replace(/^https?:\/\//, '').replace(/\/+$/, '').trim().toLowerCase();
   }
 
-  function cfApi(path) {
-    return fetch('https://api.cloudflare.com/client/v4' + path, {
-      headers: { Authorization: 'Bearer ' + cfToken.value.trim() }
-    }).then(function(r) { return r.json(); });
+  function isDomain(s) {
+    return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z]{2,})+$/.test(s);
   }
 
-  function loadZones() {
-    var token = cfToken.value.trim();
-    if (!token) return;
-
-    verifyBtn.disabled = true;
-    verifyBtn.textContent = 'Loading...';
-    result.classList.remove('hidden');
-
-    cfApi('/zones?per_page=50&status=active').then(function(data) {
-      if (!data.success) {
-        var msg = (data.errors && data.errors[0] && data.errors[0].message) || 'Invalid token';
-        throw new Error(msg);
-      }
-
-      zones = data.result;
-      result.innerHTML = '<div class="flex items-center gap-2 text-sm"><span class="text-emerald-400">&#10003;</span> Token valid &mdash; found ' + zones.length + ' domain' + (zones.length !== 1 ? 's' : '') + '</div>';
-
-      domainSection.classList.remove('hidden');
-      domainSelect.innerHTML = '<option value="">Choose a domain</option>';
-      zones.forEach(function(z) {
-        var opt = document.createElement('option');
-        opt.value = z.name;
-        opt.textContent = z.name;
-        if (z.name === GS.val('domain')) opt.selected = true;
-        domainSelect.appendChild(opt);
-      });
-
-      GS.set({ cloudflareToken: token });
-
-      // If domain was previously selected, show info
-      if (GS.val('domain')) {
-        showZoneInfo(GS.val('domain'));
-        btn.disabled = false;
-      }
-    })
-    .catch(function(e) {
-      result.innerHTML = '<div class="flex items-center gap-2 text-sm text-red-400"><span>&#10007;</span> ' + e.message + '</div>';
-      domainSection.classList.add('hidden');
-      btn.disabled = true;
-    })
-    .finally(function() {
-      verifyBtn.disabled = false;
-      verifyBtn.textContent = 'Verify & load domains';
-    });
+  function validate() {
+    var d = clean(domain.value);
+    var t = cfToken.value.trim();
+    btn.disabled = !(isDomain(d) && t.length > 10);
   }
 
-  function showZoneInfo(domainName) {
-    var zone = zones.find(function(z) { return z.name === domainName; });
-    if (!zone) { domainInfo.classList.add('hidden'); return; }
-
-    domainInfo.classList.remove('hidden');
-    document.getElementById('zone-status').textContent = zone.status;
-    document.getElementById('zone-plan').textContent = zone.plan ? zone.plan.name : 'unknown';
-    document.getElementById('zone-ns').textContent = (zone.name_servers || []).join(', ');
-
-    GS.set({ domain: zone.name, cloudflareZoneId: zone.id });
-    btn.disabled = false;
-  }
-
-  verifyBtn.addEventListener('click', loadZones);
-
-  domainSelect.addEventListener('change', function() {
-    if (!this.value) {
-      domainInfo.classList.add('hidden');
-      btn.disabled = true;
-      return;
-    }
-    showZoneInfo(this.value);
-  });
+  domain.addEventListener('input', validate);
+  cfToken.addEventListener('input', validate);
+  validate();
 
   btn.addEventListener('click', function() {
+    GS.set({
+      domain: clean(domain.value),
+      cloudflareToken: cfToken.value.trim(),
+    });
     window.location.href = btn.dataset.href;
   });
 })();
