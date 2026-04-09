@@ -73,12 +73,17 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
       installCmd = 'npm ci';
   }
 
+  var hasAnthropic = !!state.anthropicApiKey;
+  var hasOpenai = !!state.openaiApiKey;
+
   var ghPrSha = '$' + '{{ github.event.pull_request.head.sha || github.sha }}';
   var ghHead = '$' + '{{ github.event.pull_request.head.ref }}';
   var sVPS_SSH = '$' + '{{ secrets.VPS_SSH_KEY }}';
   var sVPS_HOST = '$' + '{{ secrets.VPS_HOST }}';
   var sCF_TOKEN = '$' + '{{ secrets.CLOUDFLARE_API_TOKEN }}';
   var sKON_GH = '$' + '{{ secrets.KON_GITHUB_TOKEN }}';
+  var sANTHROPIC = '$' + '{{ secrets.ANTHROPIC_API_KEY }}';
+  var sOPENAI = '$' + '{{ secrets.OPENAI_API_KEY }}';
   var ghActor = '$' + '{{ github.actor }}';
   var envExpr = "$" + "{{ github.ref == 'refs/heads/" + branch + "' && 'production' || 'preview' }}";
 
@@ -170,7 +175,9 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
     '            -e "cloudflare_api_token=' + sCF_TOKEN + '" \\',
     "            -e '" + '{"repos": ' + konReposVal + "}' \\",
     '            -e "github_token=' + sKON_GH + '" \\',
-    '            -e "github_user=' + ghActor + '"',
+    '            -e "github_user=' + ghActor + '"' +
+    (hasAnthropic ? ' \\\n            -e "anthropic_api_key=' + sANTHROPIC + '"' : '') +
+    (hasOpenai ? ' \\\n            -e "openai_api_key=' + sOPENAI + '"' : ''),
     '        env:',
     '          ANSIBLE_HOST_KEY_CHECKING: "false"',
   ].join('\n');

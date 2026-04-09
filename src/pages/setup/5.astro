@@ -1,19 +1,73 @@
 ---
 import SetupLayout from '../../layouts/SetupLayout.astro';
 ---
-<SetupLayout step={5} title="Connect AI tool" subtitle="AI-powered development sessions on your server.">
-  <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-8 text-center">
-    <p class="text-zinc-400 text-sm mb-2">Under development</p>
-    <p class="text-zinc-500 text-xs">This step will configure AI tool integration for your dev sessions.<br>Skip for now &mdash; we'll circle back once other pieces are in place.</p>
+<SetupLayout step={5} title="AI coding tools" subtitle="Add API keys for AI-powered development sessions on your server. Both are optional.">
+  <div class="space-y-6">
+    <!-- Claude Code (Anthropic) -->
+    <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+      <div class="flex items-center gap-3 mb-3">
+        <span class="text-sm font-semibold">Claude Code</span>
+        <span class="text-xs text-zinc-500 bg-zinc-800 rounded px-1.5 py-0.5">Anthropic</span>
+      </div>
+      <p class="text-xs text-zinc-400 mb-3">AI coding agent that runs in your terminal. Requires an Anthropic API key with usage credits.</p>
+      <div>
+        <label for="anthropic-key" class="block text-xs text-zinc-500 mb-1">API Key</label>
+        <input id="anthropic-key" type="password" placeholder="sk-ant-api03-..."
+          class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-emerald-500/50 placeholder-zinc-600" />
+      </div>
+      <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener"
+        class="text-xs text-zinc-500 hover:text-zinc-300 mt-2 inline-block transition-colors">
+        Get an API key &nearr;
+      </a>
+    </div>
+
+    <!-- Codex (OpenAI) -->
+    <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+      <div class="flex items-center gap-3 mb-3">
+        <span class="text-sm font-semibold">Codex</span>
+        <span class="text-xs text-zinc-500 bg-zinc-800 rounded px-1.5 py-0.5">OpenAI</span>
+      </div>
+      <p class="text-xs text-zinc-400 mb-3">OpenAI's coding agent for the terminal. Requires an OpenAI API key with ChatGPT Pro or Team plan.</p>
+      <div>
+        <label for="openai-key" class="block text-xs text-zinc-500 mb-1">API Key</label>
+        <input id="openai-key" type="password" placeholder="sk-..."
+          class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-emerald-500/50 placeholder-zinc-600" />
+      </div>
+      <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener"
+        class="text-xs text-zinc-500 hover:text-zinc-300 mt-2 inline-block transition-colors">
+        Get an API key &nearr;
+      </a>
+    </div>
   </div>
+
+  <p class="text-xs text-zinc-500 mt-4">You can skip this step and add keys later. At least one is recommended for dev sessions.</p>
 </SetupLayout>
 
 <script is:inline>
 (function() {
+  var anthropicKey = document.getElementById('anthropic-key');
+  var openaiKey = document.getElementById('openai-key');
   var btn = document.getElementById('next-btn');
+
+  anthropicKey.value = GS.val('anthropicApiKey');
+  openaiKey.value = GS.val('openaiApiKey');
+
+  // Always allow continue (both are optional)
   btn.disabled = false;
-  btn.textContent = 'Skip \u2192';
+  btn.textContent = GS.val('anthropicApiKey') || GS.val('openaiApiKey') ? 'Continue \u2192' : 'Skip \u2192';
+
+  function updateBtnText() {
+    btn.textContent = (anthropicKey.value.trim() || openaiKey.value.trim()) ? 'Continue \u2192' : 'Skip \u2192';
+  }
+
+  anthropicKey.addEventListener('input', updateBtnText);
+  openaiKey.addEventListener('input', updateBtnText);
+
   btn.addEventListener('click', function() {
+    GS.set({
+      anthropicApiKey: anthropicKey.value.trim(),
+      openaiApiKey: openaiKey.value.trim(),
+    });
     window.location.href = btn.dataset.href;
   });
 })();

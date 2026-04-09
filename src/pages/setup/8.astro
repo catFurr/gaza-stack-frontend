@@ -40,6 +40,29 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
       <p class="text-xs text-zinc-500 mt-0.5">GitHub PAT for workflow access</p>
       <p class="text-xs text-zinc-400 font-mono mt-1" id="val-gh"></p>
     </div>
+
+    <!-- Optional AI secrets -->
+    <div id="ai-secrets" class="hidden space-y-3">
+      <p class="text-xs text-zinc-500 mt-2 mb-1">AI tools (from step 5)</p>
+
+      <div id="secret-anthropic" class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 hidden">
+        <div class="flex items-center justify-between">
+          <code class="text-sm font-mono text-emerald-400">ANTHROPIC_API_KEY</code>
+          <span id="status-anthropic" class="text-xs text-zinc-600">&mdash;</span>
+        </div>
+        <p class="text-xs text-zinc-500 mt-0.5">Anthropic API key for Claude Code</p>
+        <p class="text-xs text-zinc-400 font-mono mt-1" id="val-anthropic"></p>
+      </div>
+
+      <div id="secret-openai" class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 hidden">
+        <div class="flex items-center justify-between">
+          <code class="text-sm font-mono text-emerald-400">OPENAI_API_KEY</code>
+          <span id="status-openai" class="text-xs text-zinc-600">&mdash;</span>
+        </div>
+        <p class="text-xs text-zinc-500 mt-0.5">OpenAI API key for Codex</p>
+        <p class="text-xs text-zinc-400 font-mono mt-1" id="val-openai"></p>
+      </div>
+    </div>
   </div>
 
   <div id="missing-msg" class="mt-4 hidden">
@@ -66,19 +89,33 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
   var msgEl = document.getElementById('secrets-msg');
 
   var secrets = [
-    { name: 'VPS_SSH_KEY',          value: state.sshKeyContent || '',    statusId: 'status-ssh',  valId: 'val-ssh' },
-    { name: 'VPS_HOST',             value: state.ipv4 || '',             statusId: 'status-host', valId: 'val-host' },
-    { name: 'CLOUDFLARE_API_TOKEN', value: state.cloudflareToken || '',  statusId: 'status-cf',   valId: 'val-cf' },
-    { name: 'KON_GITHUB_TOKEN',     value: token,                       statusId: 'status-gh',   valId: 'val-gh' },
+    { name: 'VPS_SSH_KEY',          value: state.sshKeyContent || '',    statusId: 'status-ssh',  valId: 'val-ssh',  required: true },
+    { name: 'VPS_HOST',             value: state.ipv4 || '',             statusId: 'status-host', valId: 'val-host', required: true },
+    { name: 'CLOUDFLARE_API_TOKEN', value: state.cloudflareToken || '',  statusId: 'status-cf',   valId: 'val-cf',   required: true },
+    { name: 'KON_GITHUB_TOKEN',     value: token,                       statusId: 'status-gh',   valId: 'val-gh',   required: true },
   ];
 
+  // Add optional AI secrets if provided in step 5
+  var hasAiKeys = state.anthropicApiKey || state.openaiApiKey;
+  if (hasAiKeys) {
+    document.getElementById('ai-secrets').classList.remove('hidden');
+  }
+  if (state.anthropicApiKey) {
+    document.getElementById('secret-anthropic').classList.remove('hidden');
+    secrets.push({ name: 'ANTHROPIC_API_KEY', value: state.anthropicApiKey, statusId: 'status-anthropic', valId: 'val-anthropic', required: false });
+  }
+  if (state.openaiApiKey) {
+    document.getElementById('secret-openai').classList.remove('hidden');
+    secrets.push({ name: 'OPENAI_API_KEY', value: state.openaiApiKey, statusId: 'status-openai', valId: 'val-openai', required: false });
+  }
+
   // Show values (masked for sensitive ones)
-  var allPresent = true;
+  var allRequiredPresent = true;
   secrets.forEach(function(s) {
     var display;
     if (!s.value) {
       display = '(not set)';
-      allPresent = false;
+      if (s.required) allRequiredPresent = false;
     } else if (s.name === 'VPS_HOST') {
       display = s.value;
     } else if (s.name === 'VPS_SSH_KEY') {
@@ -89,7 +126,7 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
     document.getElementById(s.valId).textContent = display;
   });
 
-  if (!allPresent) {
+  if (!allRequiredPresent) {
     document.getElementById('missing-msg').classList.remove('hidden');
     setBtn.disabled = true;
   }
