@@ -10,25 +10,23 @@ import Layout from '../layouts/Layout.astro';
           <h1 class="text-3xl font-bold tracking-tight mb-3">Gaza Stack</h1>
           <p class="text-zinc-400 text-sm leading-relaxed mb-4">Self-hosted dev environments. AI-powered sessions, preview URLs, and full isolation &mdash; on your own VPS.</p>
           <p class="text-sm text-zinc-300 font-medium">&lt;5 minutes to set up</p>
-          <div class="flex items-center gap-4 mt-1 text-xs text-zinc-500">
-            <span><span class="text-zinc-400">~$5&ndash;10/mo</span> VPS</span>
-            <span class="text-zinc-700">&middot;</span>
-            <span><span class="text-zinc-400">~$2&ndash;10/yr</span> domain</span>
-            <span class="text-zinc-700">&middot;</span>
-            <span><span class="text-zinc-400">$0</span> Gaza Stack</span>
-          </div>
         </div>
 
         <!-- Right: actions -->
         <div class="md:flex-1">
-          <!-- Install command -->
+          <!-- Install command (macOS/Linux) -->
           <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 relative">
             <div class="flex items-center justify-between mb-2">
-              <span class="text-xs text-zinc-500">Quick install</span>
+              <span class="text-xs text-zinc-500">Quick install <span class="text-zinc-600">(macOS / Linux)</span></span>
               <button id="copy-cmd" class="text-xs text-zinc-600 hover:text-zinc-300 transition-colors">Copy</button>
             </div>
             <code id="install-cmd" class="text-xs font-mono text-emerald-400 break-all">curl -fsSL https://raw.githubusercontent.com/catFurr/kon/main/install.sh | bash</code>
           </div>
+
+          <!-- Windows notice -->
+          <button id="windows-interest" class="w-full mt-2 text-xs text-zinc-600 hover:text-zinc-400 transition-colors text-left cursor-pointer">
+            Windows script coming soon &mdash; <span class="underline">let us know you're interested</span>
+          </button>
 
           <div class="flex items-center gap-3 my-4">
             <div class="h-px flex-1 bg-zinc-800"></div>
@@ -36,9 +34,9 @@ import Layout from '../layouts/Layout.astro';
             <div class="h-px flex-1 bg-zinc-800"></div>
           </div>
 
-          <a href="/setup/1"
+          <a id="manual-setup-btn" href="/setup/1"
             class="flex items-center justify-center gap-2 w-full px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-sm font-medium rounded-lg transition-colors">
-            Guided Setup &rarr;
+            Manual Setup &rarr;
           </a>
           <p class="text-xs text-zinc-500 mt-2 text-center">Step-by-step browser wizard</p>
         </div>
@@ -51,11 +49,27 @@ import Layout from '../layouts/Layout.astro';
 (function() {
   var cmd = document.getElementById('install-cmd');
   var copyBtn = document.getElementById('copy-cmd');
+  var windowsBtn = document.getElementById('windows-interest');
+  var manualBtn = document.getElementById('manual-setup-btn');
 
   copyBtn.addEventListener('click', function() {
     navigator.clipboard.writeText(cmd.textContent);
     copyBtn.textContent = 'Copied!';
+    posthog.capture('quick_install_copied');
     setTimeout(function() { copyBtn.textContent = 'Copy'; }, 1500);
+  });
+
+  windowsBtn.addEventListener('click', function() {
+    posthog.capture('windows_interest_clicked');
+    windowsBtn.textContent = 'Thanks! We\'ll notify you when it\'s ready.';
+    windowsBtn.disabled = true;
+    windowsBtn.classList.remove('hover:text-zinc-400');
+    windowsBtn.classList.add('text-emerald-500');
+    windowsBtn.style.cursor = 'default';
+  });
+
+  manualBtn.addEventListener('click', function() {
+    posthog.capture('manual_setup_clicked');
   });
 })();
 </script>
