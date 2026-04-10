@@ -3,55 +3,44 @@ import Layout from '../layouts/Layout.astro';
 ---
 <Layout title="Gaza Stack">
   <main class="min-h-screen flex items-center justify-center px-6">
-    <div class="text-center max-w-lg">
-      <h1 class="text-3xl font-bold tracking-tight mb-3">Gaza Stack</h1>
-      <p class="text-zinc-400 mb-10">Self-hosted dev environments.<br>AI-powered sessions, preview URLs, and full isolation &mdash; on your own VPS.</p>
-
-      <!-- Quick install -->
-      <div class="mb-6">
-        <p class="text-xs text-zinc-500 uppercase tracking-wider mb-3 font-medium">Quick install</p>
-        <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 text-left relative group">
-          <div id="install-tabs" class="flex gap-1 mb-3">
-            <button data-os="mac" class="install-tab text-xs px-2.5 py-1 rounded bg-zinc-800 text-zinc-300 transition-colors">macOS / Linux</button>
-            <button data-os="win" class="install-tab text-xs px-2.5 py-1 rounded text-zinc-500 hover:text-zinc-400 transition-colors">Windows</button>
+    <div class="max-w-2xl w-full">
+      <div class="flex flex-col md:flex-row md:items-center md:gap-12">
+        <!-- Left: branding -->
+        <div class="md:flex-1 mb-10 md:mb-0">
+          <h1 class="text-3xl font-bold tracking-tight mb-3">Gaza Stack</h1>
+          <p class="text-zinc-400 text-sm leading-relaxed mb-4">Self-hosted dev environments. AI-powered sessions, preview URLs, and full isolation &mdash; on your own VPS.</p>
+          <p class="text-sm text-zinc-300 font-medium">&lt;5 minutes to set up</p>
+          <div class="flex items-center gap-4 mt-1 text-xs text-zinc-500">
+            <span><span class="text-zinc-400">~$5&ndash;10/mo</span> VPS</span>
+            <span class="text-zinc-700">&middot;</span>
+            <span><span class="text-zinc-400">~$2&ndash;10/yr</span> domain</span>
+            <span class="text-zinc-700">&middot;</span>
+            <span><span class="text-zinc-400">$0</span> Gaza Stack</span>
           </div>
-          <code id="install-cmd-mac" class="text-sm font-mono text-emerald-400 block">curl -fsSL https://raw.githubusercontent.com/catFurr/kon/main/install.sh | bash</code>
-          <code id="install-cmd-win" class="text-sm font-mono text-emerald-400 hidden block">irm https://raw.githubusercontent.com/catFurr/kon/main/install.ps1 | iex</code>
-          <button id="copy-cmd" class="absolute top-4 right-4 text-xs text-zinc-600 hover:text-zinc-300 transition-colors">Copy</button>
         </div>
-      </div>
 
-      <div class="flex items-center gap-3 justify-center mb-6">
-        <div class="h-px flex-1 bg-zinc-800"></div>
-        <span class="text-xs text-zinc-600">or</span>
-        <div class="h-px flex-1 bg-zinc-800"></div>
-      </div>
+        <!-- Right: actions -->
+        <div class="md:flex-1">
+          <!-- Install command -->
+          <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 relative">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs text-zinc-500">Quick install</span>
+              <button id="copy-cmd" class="text-xs text-zinc-600 hover:text-zinc-300 transition-colors">Copy</button>
+            </div>
+            <code id="install-cmd" class="text-xs font-mono text-emerald-400 break-all">curl -fsSL https://raw.githubusercontent.com/catFurr/kon/main/install.sh | bash</code>
+          </div>
 
-      <!-- Guided setup -->
-      <a href="/setup/1"
-        class="inline-flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-sm font-medium rounded-lg transition-colors">
-        Guided Setup &rarr;
-      </a>
-      <p class="text-xs text-zinc-500 mt-2">Step-by-step browser wizard</p>
+          <div class="flex items-center gap-3 my-4">
+            <div class="h-px flex-1 bg-zinc-800"></div>
+            <span class="text-xs text-zinc-600">or</span>
+            <div class="h-px flex-1 bg-zinc-800"></div>
+          </div>
 
-      <!-- Cost/time breakdown -->
-      <div class="mt-10 pt-6 border-t border-zinc-800/50">
-        <p class="text-sm text-zinc-400 font-medium mb-2">~15 minutes to set up</p>
-        <div class="flex items-center justify-center gap-6 text-xs text-zinc-500">
-          <div>
-            <span class="text-zinc-300 font-medium">~$5&ndash;10/mo</span>
-            <span class="ml-1">VPS</span>
-          </div>
-          <div class="text-zinc-700">&middot;</div>
-          <div>
-            <span class="text-zinc-300 font-medium">~$2&ndash;10/yr</span>
-            <span class="ml-1">domain</span>
-          </div>
-          <div class="text-zinc-700">&middot;</div>
-          <div>
-            <span class="text-zinc-300 font-medium">$0</span>
-            <span class="ml-1">Gaza Stack</span>
-          </div>
+          <a href="/setup/1"
+            class="flex items-center justify-center gap-2 w-full px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-sm font-medium rounded-lg transition-colors">
+            Guided Setup &rarr;
+          </a>
+          <p class="text-xs text-zinc-500 mt-2 text-center">Step-by-step browser wizard</p>
         </div>
       </div>
     </div>
@@ -60,40 +49,11 @@ import Layout from '../layouts/Layout.astro';
 
 <script is:inline>
 (function() {
-  var macCmd = document.getElementById('install-cmd-mac');
-  var winCmd = document.getElementById('install-cmd-win');
-  var tabs = document.querySelectorAll('.install-tab');
+  var cmd = document.getElementById('install-cmd');
   var copyBtn = document.getElementById('copy-cmd');
 
-  function setOS(os) {
-    tabs.forEach(function(t) {
-      if (t.dataset.os === os) {
-        t.className = 'install-tab text-xs px-2.5 py-1 rounded bg-zinc-800 text-zinc-300 transition-colors';
-      } else {
-        t.className = 'install-tab text-xs px-2.5 py-1 rounded text-zinc-500 hover:text-zinc-400 transition-colors';
-      }
-    });
-    if (os === 'win') {
-      macCmd.classList.add('hidden');
-      winCmd.classList.remove('hidden');
-    } else {
-      macCmd.classList.remove('hidden');
-      winCmd.classList.add('hidden');
-    }
-  }
-
-  // Auto-detect OS
-  if (navigator.platform && navigator.platform.indexOf('Win') > -1) {
-    setOS('win');
-  }
-
-  tabs.forEach(function(t) {
-    t.addEventListener('click', function() { setOS(this.dataset.os); });
-  });
-
   copyBtn.addEventListener('click', function() {
-    var visible = winCmd.classList.contains('hidden') ? macCmd : winCmd;
-    navigator.clipboard.writeText(visible.textContent);
+    navigator.clipboard.writeText(cmd.textContent);
     copyBtn.textContent = 'Copied!';
     setTimeout(function() { copyBtn.textContent = 'Copy'; }, 1500);
   });
