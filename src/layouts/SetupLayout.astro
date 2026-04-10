@@ -56,6 +56,28 @@ const nextHref = step < totalSteps ? `/setup/${step + 1}` : '/setup/done';
     </div>
 
     <main class="flex-1 max-w-xl mx-auto w-full px-6 py-10">
+      <!-- Script installer banner (dismissible) -->
+      <div id="script-banner" class="hidden mb-6 bg-zinc-900 border border-zinc-800 rounded-lg p-4 relative">
+        <button id="dismiss-banner" class="absolute top-3 right-3 text-zinc-600 hover:text-zinc-400 text-sm transition-colors">&times;</button>
+        <p class="text-xs text-zinc-500 mb-2">Prefer a one-liner? The CLI installer handles everything automatically:</p>
+        <code class="text-xs font-mono text-emerald-400 block pr-6">curl -fsSL https://raw.githubusercontent.com/catFurr/kon/main/install.sh | bash</code>
+      </div>
+      <script is:inline>
+        (function() {
+          var banner = document.getElementById('script-banner');
+          var dismiss = document.getElementById('dismiss-banner');
+          if (banner && !localStorage.getItem('gs_banner_dismissed')) {
+            banner.classList.remove('hidden');
+          }
+          if (dismiss) {
+            dismiss.addEventListener('click', function() {
+              banner.classList.add('hidden');
+              localStorage.setItem('gs_banner_dismissed', '1');
+            });
+          }
+        })();
+      </script>
+
       <h1 class="text-xl font-semibold tracking-tight">{title}</h1>
       {subtitle && <p class="text-zinc-400 text-sm mt-1">{subtitle}</p>}
       <div class="mt-8">
