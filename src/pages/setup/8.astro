@@ -1,134 +1,239 @@
 ---
 import SetupLayout from '../../layouts/SetupLayout.astro';
 ---
-<SetupLayout step={8} title="Set GitHub secrets" subtitle="We'll automatically configure the secrets your repo needs for deployments.">
+<SetupLayout step={8} title="Set up infrastructure repo" subtitle="Fork the kon repo and configure secrets for your deployment.">
   <script is:inline src="https://cdn.jsdelivr.net/npm/libsodium-wrappers@0.7.15/dist/modules/libsodium-wrappers.min.js"></script>
 
-  <div class="space-y-3" id="secrets-list">
-    <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+  <!-- Step 1: Fork kon -->
+  <div id="fork-section" class="space-y-3">
+    <p class="text-sm text-zinc-400">Your infrastructure will be managed through a fork of <a href="https://github.com/catFurr/kon" target="_blank" rel="noopener" class="text-emerald-400 hover:underline">catFurr/kon</a>.</p>
+
+    <div id="fork-status" class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
       <div class="flex items-center justify-between">
-        <code class="text-sm font-mono text-emerald-400">VPS_SSH_KEY</code>
-        <span id="status-ssh" class="text-xs text-zinc-600">&mdash;</span>
+        <span class="text-sm font-medium">Fork status</span>
+        <span id="fork-status-badge" class="text-xs text-zinc-600">checking...</span>
       </div>
-      <p class="text-xs text-zinc-500 mt-0.5">SSH private key from step 1</p>
-      <p class="text-xs text-zinc-400 font-mono mt-1" id="val-ssh"></p>
+      <p id="fork-status-detail" class="text-xs text-zinc-500 mt-1"></p>
     </div>
 
-    <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-      <div class="flex items-center justify-between">
-        <code class="text-sm font-mono text-emerald-400">VPS_HOST</code>
-        <span id="status-host" class="text-xs text-zinc-600">&mdash;</span>
-      </div>
-      <p class="text-xs text-zinc-500 mt-0.5">Server IPv4 address</p>
-      <p class="text-xs text-zinc-400 font-mono mt-1" id="val-host"></p>
-    </div>
-
-    <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-      <div class="flex items-center justify-between">
-        <code class="text-sm font-mono text-emerald-400">CLOUDFLARE_API_TOKEN</code>
-        <span id="status-cf" class="text-xs text-zinc-600">&mdash;</span>
-      </div>
-      <p class="text-xs text-zinc-500 mt-0.5">Cloudflare API token for DNS &amp; SSL</p>
-      <p class="text-xs text-zinc-400 font-mono mt-1" id="val-cf"></p>
-    </div>
-
-    <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-      <div class="flex items-center justify-between">
-        <code class="text-sm font-mono text-emerald-400">KON_GITHUB_TOKEN</code>
-        <span id="status-gh" class="text-xs text-zinc-600">&mdash;</span>
-      </div>
-      <p class="text-xs text-zinc-500 mt-0.5">GitHub PAT for workflow access</p>
-      <p class="text-xs text-zinc-400 font-mono mt-1" id="val-gh"></p>
-    </div>
-
-    <!-- Optional AI secrets -->
-    <div id="ai-secrets" class="hidden space-y-3">
-      <p class="text-xs text-zinc-500 mt-2 mb-1">AI tools (from step 5)</p>
-
-      <div id="secret-anthropic" class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 hidden">
-        <div class="flex items-center justify-between">
-          <code class="text-sm font-mono text-emerald-400">ANTHROPIC_API_KEY</code>
-          <span id="status-anthropic" class="text-xs text-zinc-600">&mdash;</span>
-        </div>
-        <p class="text-xs text-zinc-500 mt-0.5">Anthropic API key for Claude Code</p>
-        <p class="text-xs text-zinc-400 font-mono mt-1" id="val-anthropic"></p>
-      </div>
-
-      <div id="secret-openai" class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 hidden">
-        <div class="flex items-center justify-between">
-          <code class="text-sm font-mono text-emerald-400">OPENAI_API_KEY</code>
-          <span id="status-openai" class="text-xs text-zinc-600">&mdash;</span>
-        </div>
-        <p class="text-xs text-zinc-500 mt-0.5">OpenAI API key for Codex</p>
-        <p class="text-xs text-zinc-400 font-mono mt-1" id="val-openai"></p>
-      </div>
-    </div>
-  </div>
-
-  <div id="missing-msg" class="mt-4 hidden">
-    <p class="text-sm text-red-400">Some values are missing. Go back to previous steps to fill them in.</p>
-  </div>
-
-  <div class="mt-6">
-    <button id="set-secrets-btn"
-      class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-800 disabled:text-zinc-600 disabled:cursor-not-allowed text-sm font-medium rounded-lg transition-colors">
-      Set all secrets
+    <button id="fork-btn"
+      class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-800 disabled:text-zinc-600 disabled:cursor-not-allowed text-sm font-medium rounded-lg transition-colors hidden">
+      Fork catFurr/kon
     </button>
   </div>
 
-  <div id="secrets-msg" class="mt-4 hidden"></div>
+  <!-- Step 2: Secrets (shown after fork) -->
+  <div id="secrets-section" class="mt-6 hidden">
+    <h3 class="text-sm font-medium mb-3">Configure secrets on your fork</h3>
+    <div class="space-y-3" id="secrets-list">
+      <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+        <div class="flex items-center justify-between">
+          <code class="text-sm font-mono text-emerald-400">VPS_SSH_KEY</code>
+          <span id="status-ssh" class="text-xs text-zinc-600">&mdash;</span>
+        </div>
+        <p class="text-xs text-zinc-500 mt-0.5">SSH private key from step 1</p>
+      </div>
+
+      <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+        <div class="flex items-center justify-between">
+          <code class="text-sm font-mono text-emerald-400">VPS_HOST</code>
+          <span id="status-host" class="text-xs text-zinc-600">&mdash;</span>
+        </div>
+        <p class="text-xs text-zinc-500 mt-0.5">Server IPv4 address</p>
+      </div>
+
+      <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+        <div class="flex items-center justify-between">
+          <code class="text-sm font-mono text-emerald-400">CLOUDFLARE_API_TOKEN</code>
+          <span id="status-cf" class="text-xs text-zinc-600">&mdash;</span>
+        </div>
+        <p class="text-xs text-zinc-500 mt-0.5">Cloudflare API token for DNS &amp; SSL</p>
+      </div>
+
+      <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+        <div class="flex items-center justify-between">
+          <code class="text-sm font-mono text-emerald-400">KON_GITHUB_TOKEN</code>
+          <span id="status-gh" class="text-xs text-zinc-600">&mdash;</span>
+        </div>
+        <p class="text-xs text-zinc-500 mt-0.5">GitHub PAT for workflow access</p>
+      </div>
+
+      <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+        <div class="flex items-center justify-between">
+          <code class="text-sm font-mono text-emerald-400">KON_REPOS</code>
+          <span id="status-repos" class="text-xs text-zinc-600">&mdash;</span>
+        </div>
+        <p class="text-xs text-zinc-500 mt-0.5">Project repos &amp; services config from step 7</p>
+      </div>
+
+      <!-- Optional AI secrets -->
+      <div id="ai-secrets" class="hidden space-y-3">
+        <p class="text-xs text-zinc-500 mt-2 mb-1">AI tools (from step 5)</p>
+
+        <div id="secret-anthropic" class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 hidden">
+          <div class="flex items-center justify-between">
+            <code class="text-sm font-mono text-emerald-400">ANTHROPIC_API_KEY</code>
+            <span id="status-anthropic" class="text-xs text-zinc-600">&mdash;</span>
+          </div>
+        </div>
+
+        <div id="secret-openai" class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 hidden">
+          <div class="flex items-center justify-between">
+            <code class="text-sm font-mono text-emerald-400">OPENAI_API_KEY</code>
+            <span id="status-openai" class="text-xs text-zinc-600">&mdash;</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-4">
+      <button id="set-secrets-btn"
+        class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-800 disabled:text-zinc-600 disabled:cursor-not-allowed text-sm font-medium rounded-lg transition-colors">
+        Set all secrets
+      </button>
+    </div>
+
+    <div id="secrets-msg" class="mt-4 hidden"></div>
+  </div>
 </SetupLayout>
 
 <script is:inline>
 (function() {
   var state = GS.get();
-  var repo = state.repoFullName || '';
   var token = state.githubPat || '';
   var btn = document.getElementById('next-btn');
+  var forkBtn = document.getElementById('fork-btn');
+  var forkBadge = document.getElementById('fork-status-badge');
+  var forkDetail = document.getElementById('fork-status-detail');
+  var secretsSection = document.getElementById('secrets-section');
   var setBtn = document.getElementById('set-secrets-btn');
   var msgEl = document.getElementById('secrets-msg');
 
+  var konFork = state.konForkFullName || '';
+
+  function ghApi(method, path, body) {
+    var opts = {
+      method: method,
+      headers: { Authorization: 'token ' + token, 'Content-Type': 'application/json' },
+    };
+    if (body) opts.body = JSON.stringify(body);
+    return fetch('https://api.github.com' + path, opts);
+  }
+
+  // ── Check for existing fork ───────────────────────────────────────────
+  function checkFork() {
+    if (!token) {
+      forkBadge.textContent = 'no token';
+      forkDetail.textContent = 'Go back to step 4 to set your GitHub token.';
+      return;
+    }
+
+    // Check if we already know the fork
+    if (konFork) {
+      ghApi('GET', '/repos/' + konFork).then(function(r) {
+        if (r.ok) {
+          showForkReady(konFork);
+        } else {
+          // Fork no longer exists, re-detect
+          konFork = '';
+          GS.set({ konForkFullName: '' });
+          detectFork();
+        }
+      });
+      return;
+    }
+
+    detectFork();
+  }
+
+  function detectFork() {
+    forkBadge.textContent = 'checking...';
+    forkDetail.textContent = 'Looking for an existing fork of catFurr/kon...';
+
+    // Check user's repos for a fork of catFurr/kon
+    ghApi('GET', '/repos/catFurr/kon/forks?per_page=100').then(function(r) {
+      if (!r.ok) throw new Error('Cannot check forks');
+      return r.json();
+    }).then(function(forks) {
+      // Get current user
+      return ghApi('GET', '/user').then(function(r) { return r.json(); }).then(function(user) {
+        var myFork = forks.find(function(f) { return f.owner.login === user.login; });
+        if (myFork) {
+          konFork = myFork.full_name;
+          GS.set({ konForkFullName: konFork });
+          showForkReady(konFork);
+        } else {
+          forkBadge.textContent = 'not found';
+          forkBadge.className = 'text-xs text-yellow-400';
+          forkDetail.textContent = 'No fork found. Click below to create one.';
+          forkBtn.classList.remove('hidden');
+        }
+      });
+    }).catch(function(e) {
+      forkBadge.textContent = 'error';
+      forkBadge.className = 'text-xs text-red-400';
+      forkDetail.textContent = 'Error checking forks: ' + e.message;
+      forkBtn.classList.remove('hidden');
+      forkBtn.textContent = 'Try forking anyway';
+    });
+  }
+
+  function showForkReady(forkName) {
+    forkBadge.textContent = '✓ ready';
+    forkBadge.className = 'text-xs text-emerald-400';
+    forkDetail.innerHTML = 'Using <a href="https://github.com/' + forkName + '" target="_blank" rel="noopener" class="text-emerald-400 hover:underline">' + forkName + '</a>';
+    forkBtn.classList.add('hidden');
+    secretsSection.classList.remove('hidden');
+  }
+
+  // ── Create fork ───────────────────────────────────────────────────────
+  forkBtn.addEventListener('click', function() {
+    forkBtn.disabled = true;
+    forkBtn.textContent = 'Forking...';
+    forkBadge.textContent = 'forking...';
+
+    ghApi('POST', '/repos/catFurr/kon/forks', {}).then(function(r) {
+      if (!r.ok && r.status !== 202) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function(fork) {
+      konFork = fork.full_name;
+      GS.set({ konForkFullName: konFork });
+      showForkReady(konFork);
+    }).catch(function(e) {
+      forkBadge.textContent = 'failed';
+      forkBadge.className = 'text-xs text-red-400';
+      forkDetail.textContent = 'Fork failed: ' + e.message;
+      forkBtn.disabled = false;
+      forkBtn.textContent = 'Retry fork';
+    });
+  });
+
+  // ── Secrets ───────────────────────────────────────────────────────────
+  // Build repos JSON for KON_REPOS secret
+  var repos = state.repos || [];
+  var konReposJson = JSON.stringify(repos.map(function(r) {
+    return { name: r.name, url: r.url, submodules: r.submodules || false, services: r.services || [] };
+  }));
+
   var secrets = [
-    { name: 'VPS_SSH_KEY',          value: state.sshKeyContent || '',    statusId: 'status-ssh',  valId: 'val-ssh',  required: true },
-    { name: 'VPS_HOST',             value: state.ipv4 || '',             statusId: 'status-host', valId: 'val-host', required: true },
-    { name: 'CLOUDFLARE_API_TOKEN', value: state.cloudflareToken || '',  statusId: 'status-cf',   valId: 'val-cf',   required: true },
-    { name: 'KON_GITHUB_TOKEN',     value: token,                       statusId: 'status-gh',   valId: 'val-gh',   required: true },
+    { name: 'VPS_SSH_KEY',          value: state.sshKeyContent || '',   statusId: 'status-ssh',   required: true },
+    { name: 'VPS_HOST',             value: state.ipv4 || '',            statusId: 'status-host',  required: true },
+    { name: 'CLOUDFLARE_API_TOKEN', value: state.cloudflareToken || '', statusId: 'status-cf',    required: true },
+    { name: 'KON_GITHUB_TOKEN',     value: token,                      statusId: 'status-gh',    required: true },
+    { name: 'KON_REPOS',            value: konReposJson,                statusId: 'status-repos', required: true },
   ];
 
-  // Add optional AI secrets if provided in step 5
-  var hasAiKeys = state.anthropicApiKey || state.openaiApiKey;
-  if (hasAiKeys) {
+  // Add optional AI secrets
+  if (state.anthropicApiKey || state.openaiApiKey) {
     document.getElementById('ai-secrets').classList.remove('hidden');
   }
   if (state.anthropicApiKey) {
     document.getElementById('secret-anthropic').classList.remove('hidden');
-    secrets.push({ name: 'ANTHROPIC_API_KEY', value: state.anthropicApiKey, statusId: 'status-anthropic', valId: 'val-anthropic', required: false });
+    secrets.push({ name: 'ANTHROPIC_API_KEY', value: state.anthropicApiKey, statusId: 'status-anthropic', required: false });
   }
   if (state.openaiApiKey) {
     document.getElementById('secret-openai').classList.remove('hidden');
-    secrets.push({ name: 'OPENAI_API_KEY', value: state.openaiApiKey, statusId: 'status-openai', valId: 'val-openai', required: false });
-  }
-
-  // Show values (masked for sensitive ones)
-  var allRequiredPresent = true;
-  secrets.forEach(function(s) {
-    var display;
-    if (!s.value) {
-      display = '(not set)';
-      if (s.required) allRequiredPresent = false;
-    } else if (s.name === 'VPS_HOST') {
-      display = s.value;
-    } else if (s.name === 'VPS_SSH_KEY') {
-      display = s.value.split('\n')[0].slice(0, 30) + '...';
-    } else {
-      display = s.value.slice(0, 8) + '...' + s.value.slice(-4);
-    }
-    document.getElementById(s.valId).textContent = display;
-  });
-
-  if (!allRequiredPresent) {
-    document.getElementById('missing-msg').classList.remove('hidden');
-    setBtn.disabled = true;
+    secrets.push({ name: 'OPENAI_API_KEY', value: state.openaiApiKey, statusId: 'status-openai', required: false });
   }
 
   function setStatus(id, ok, text) {
@@ -145,34 +250,29 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
     return sodium.to_base64(encrypted, sodium.base64_variants.ORIGINAL);
   }
 
-  async function setSecret(secretName, secretValue, publicKey, keyId) {
+  async function setSecret(repo, secretName, secretValue, publicKey, keyId) {
     var encryptedValue = await encryptSecret(publicKey, secretValue);
     var r = await fetch('https://api.github.com/repos/' + repo + '/actions/secrets/' + secretName, {
       method: 'PUT',
-      headers: {
-        Authorization: 'token ' + token,
-        'Content-Type': 'application/json',
-      },
+      headers: { Authorization: 'token ' + token, 'Content-Type': 'application/json' },
       body: JSON.stringify({ encrypted_value: encryptedValue, key_id: keyId }),
     });
     if (!r.ok) {
       var body = '';
       try { body = (await r.json()).message; } catch(e) {}
-      throw new Error('HTTP ' + r.status + (body ? ' \u2014 ' + body : ''));
+      throw new Error('HTTP ' + r.status + (body ? ' — ' + body : ''));
     }
   }
 
   setBtn.addEventListener('click', async function() {
-    if (!token || !repo) return;
+    if (!token || !konFork) return;
 
     setBtn.disabled = true;
     setBtn.textContent = 'Setting secrets...';
     msgEl.classList.add('hidden');
 
     try {
-      var keyRes = await fetch('https://api.github.com/repos/' + repo + '/actions/secrets/public-key', {
-        headers: { Authorization: 'token ' + token }
-      });
+      var keyRes = await ghApi('GET', '/repos/' + konFork + '/actions/secrets/public-key');
       if (!keyRes.ok) throw new Error('Failed to get repo public key (HTTP ' + keyRes.status + ')');
       var keyData = await keyRes.json();
 
@@ -182,10 +282,10 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
         var s = secrets[i];
         setStatus(s.statusId, null, 'setting...');
         try {
-          await setSecret(s.name, s.value, keyData.key, keyData.key_id);
-          setStatus(s.statusId, true, '\u2713 set');
+          await setSecret(konFork, s.name, s.value, keyData.key, keyData.key_id);
+          setStatus(s.statusId, true, '✓ set');
         } catch (e) {
-          setStatus(s.statusId, false, '\u2717 failed');
+          setStatus(s.statusId, false, '✗ failed');
           failed.push({ name: s.name, error: e.message });
           allOk = false;
         }
@@ -193,16 +293,15 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
 
       msgEl.classList.remove('hidden');
       if (allOk) {
-        msgEl.innerHTML = '<p class="text-sm text-emerald-400">\u2713 All secrets configured successfully.</p>';
+        msgEl.innerHTML = '<p class="text-sm text-emerald-400">✓ All secrets configured on ' + konFork + '.</p>';
         btn.disabled = false;
       } else {
         msgEl.innerHTML =
           '<div class="bg-red-950/30 border border-red-900/50 rounded-lg p-4 space-y-2">' +
             '<p class="text-sm text-red-400 font-medium">Failed to set some secrets</p>' +
             '<ul class="text-xs text-zinc-400 space-y-1 mt-1">' +
-            failed.map(function(f) { return '<li>&bull; <code class="text-zinc-300">' + f.name + '</code> &mdash; ' + f.error + '</li>'; }).join('') +
+            failed.map(function(f) { return '<li>&bull; <code class="text-zinc-300">' + f.name + '</code> — ' + f.error + '</li>'; }).join('') +
             '</ul>' +
-            '<p class="text-xs text-zinc-500 mt-2">Check that your token has <code class="text-zinc-300">repo</code> scope (classic) or <code class="text-zinc-300">Secrets: Read and write</code> permission (fine-grained).</p>' +
           '</div>';
       }
     } catch (e) {
@@ -217,5 +316,8 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
   btn.addEventListener('click', function() {
     window.location.href = btn.dataset.href;
   });
+
+  // Init
+  checkFork();
 })();
 </script>

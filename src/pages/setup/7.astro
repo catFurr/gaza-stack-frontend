@@ -1,70 +1,300 @@
 ---
 import SetupLayout from '../../layouts/SetupLayout.astro';
 ---
-<SetupLayout step={7} title="Select your project" subtitle="Choose the repository you'll work on in dev sessions.">
-  <div class="space-y-4">
-    <div>
-      <label for="repo-select" class="block text-sm font-medium mb-1.5">Repository</label>
-      <select id="repo-select"
-        class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500/50 appearance-none cursor-pointer">
-        <option value="">Loading repositories...</option>
-      </select>
-    </div>
+<SetupLayout step={7} title="Configure your project" subtitle="Set up the repositories and services for your dev sessions.">
+  <div id="repos-container" class="space-y-4"></div>
 
-    <div>
-      <label for="dev-cmd" class="block text-sm font-medium mb-1.5">Dev command <span class="text-zinc-500 font-normal">(optional)</span></label>
-      <input id="dev-cmd" type="text" placeholder="npm run dev"
-        class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500/50 placeholder-zinc-600 font-mono" />
-      <p class="text-xs text-zinc-500 mt-1.5">Auto-detected from package.json if left empty</p>
-    </div>
-  </div>
+  <button id="add-repo-btn" type="button"
+    class="mt-4 w-full px-4 py-2.5 border border-dashed border-zinc-700 hover:border-zinc-500 text-sm text-zinc-400 hover:text-zinc-300 rounded-lg transition-colors">
+    + Add another repository
+  </button>
 </SetupLayout>
 
 <script is:inline>
 (function() {
   var state = GS.get();
-  var select = document.getElementById('repo-select');
-  var devCmd = document.getElementById('dev-cmd');
+  var token = state.githubPat;
   var btn = document.getElementById('next-btn');
+  var container = document.getElementById('repos-container');
+  var addBtn = document.getElementById('add-repo-btn');
+  var allGhRepos = [];
+  var repoEntries = [];
 
-  devCmd.value = GS.val('devCommand') || '';
-
-  function validate() {
-    btn.disabled = !select.value;
+  // ── Restore from state or start with one empty entry ──────────────────
+  var savedRepos = state.repos || [];
+  // Backward compat: migrate old single-repo format
+  if (savedRepos.length === 0 && state.repoFullName) {
+    savedRepos = [{
+      fullName: state.repoFullName,
+      name: state.repoFullName.split('/')[1] || state.repoFullName,
+      url: 'https://github.com/' + state.repoFullName,
+      submodules: false,
+      services: state.devCommand ? [{ label: 'dev', path: '.', devCommand: state.devCommand, type: 'dev' }] : []
+    }];
   }
 
-  var token = state.githubPat;
-  if (!token) {
-    select.innerHTML = '<option value="">No GitHub token \u2014 go back to step 4</option>';
-  } else {
-    fetch('https://api.github.com/user/repos?per_page=100&sort=updated&affiliation=owner', {
+  // ── Load GitHub repos ─────────────────────────────────────────────────
+  function loadGhRepos(cb) {
+    if (!token) { cb([]); return; }
+    fetch('https://api.github.com/user/repos?per_page=100&sort=updated&affiliation=owner,collaborator,organization_member', {
       headers: { Authorization: 'token ' + token }
     })
     .then(function(r) { return r.json(); })
     .then(function(repos) {
-      select.innerHTML = '<option value="">Select a repository</option>';
-      repos.forEach(function(repo) {
-        var opt = document.createElement('option');
-        opt.value = repo.full_name;
-        opt.textContent = repo.full_name;
-        if (repo.full_name === GS.val('repoFullName')) opt.selected = true;
-        select.appendChild(opt);
-      });
-      validate();
+      if (!Array.isArray(repos)) { cb([]); return; }
+      allGhRepos = repos;
+      cb(repos);
     })
-    .catch(function() {
-      select.innerHTML = '<option value="">Failed to load repos</option>';
+    .catch(function() { cb([]); });
+  }
+
+  // ── Render a repo select dropdown ─────────────────────────────────────
+  function populateSelect(select, selectedFullName) {
+    select.innerHTML = '<option value="">Select a repository</option>';
+    allGhRepos.forEach(function(repo) {
+      var opt = document.createElement('option');
+      opt.value = repo.full_name;
+      opt.textContent = repo.full_name;
+      if (repo.full_name === selectedFullName) opt.selected = true;
+      select.appendChild(opt);
     });
   }
 
-  select.addEventListener('change', validate);
-  validate();
+  // ── Create a service row ──────────────────────────────────────────────
+  function createServiceRow(svc, repoIdx, svcIdx) {
+    var row = document.createElement('div');
+    row.className = 'flex gap-2 items-start';
+    row.innerHTML =
+      '<div class="flex-1 space-y-2">' +
+        '<div class="flex gap-2">' +
+          '<input type="text" placeholder="Label (e.g. web, api)" value="' + (svc.label || '') + '" data-field="label" ' +
+            'class="flex-1 bg-zinc-950 border border-zinc-800 rounded px-3 py-1.5 text-xs font-mono focus:outline-none focus:border-emerald-500/50" />' +
+          '<input type="text" placeholder="Path (e.g. apps/web)" value="' + (svc.path || '.') + '" data-field="path" ' +
+            'class="flex-1 bg-zinc-950 border border-zinc-800 rounded px-3 py-1.5 text-xs font-mono focus:outline-none focus:border-emerald-500/50" />' +
+        '</div>' +
+        '<div class="flex gap-2">' +
+          '<input type="text" placeholder="Dev command (auto-detected if empty)" value="' + (svc.devCommand || '') + '" data-field="devCommand" ' +
+            'class="flex-1 bg-zinc-950 border border-zinc-800 rounded px-3 py-1.5 text-xs font-mono focus:outline-none focus:border-emerald-500/50" />' +
+          '<select data-field="type" class="bg-zinc-950 border border-zinc-800 rounded px-3 py-1.5 text-xs focus:outline-none focus:border-emerald-500/50 cursor-pointer">' +
+            '<option value="dev"' + (svc.type !== 'docker' ? ' selected' : '') + '>Dev server</option>' +
+            '<option value="docker"' + (svc.type === 'docker' ? ' selected' : '') + '>Docker Compose</option>' +
+          '</select>' +
+        '</div>' +
+      '</div>' +
+      '<button type="button" class="remove-svc-btn mt-1 text-zinc-600 hover:text-red-400 text-sm transition-colors" title="Remove service">&times;</button>';
+
+    row.querySelector('.remove-svc-btn').addEventListener('click', function() {
+      row.remove();
+      validate();
+    });
+
+    return row;
+  }
+
+  // ── Create a repo card ────────────────────────────────────────────────
+  function createRepoCard(saved) {
+    var idx = repoEntries.length;
+    var card = document.createElement('div');
+    card.className = 'bg-zinc-900 border border-zinc-800 rounded-lg p-4 space-y-3';
+
+    // Header with remove button
+    var header = document.createElement('div');
+    header.className = 'flex items-center justify-between';
+    header.innerHTML =
+      '<span class="text-xs text-zinc-500 font-medium uppercase tracking-wider">Repository ' + (idx + 1) + '</span>' +
+      (idx > 0 ? '<button type="button" class="remove-repo-btn text-zinc-600 hover:text-red-400 text-xs transition-colors">Remove</button>' : '');
+    card.appendChild(header);
+
+    // Repo select
+    var selectWrap = document.createElement('div');
+    var select = document.createElement('select');
+    select.className = 'w-full bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500/50 appearance-none cursor-pointer';
+    select.innerHTML = '<option value="">Loading repositories...</option>';
+    selectWrap.appendChild(select);
+    card.appendChild(selectWrap);
+
+    // Submodules checkbox
+    var subWrap = document.createElement('label');
+    subWrap.className = 'flex items-center gap-2 cursor-pointer';
+    var subCheck = document.createElement('input');
+    subCheck.type = 'checkbox';
+    subCheck.className = 'rounded border-zinc-700 bg-zinc-950 text-emerald-500 focus:ring-emerald-500/30';
+    subCheck.checked = saved ? !!saved.submodules : false;
+    subWrap.appendChild(subCheck);
+    var subLabel = document.createElement('span');
+    subLabel.className = 'text-xs text-zinc-400';
+    subLabel.textContent = 'Uses git submodules';
+    subWrap.appendChild(subLabel);
+    card.appendChild(subWrap);
+
+    // Services section (collapsed by default if no services)
+    var svcSection = document.createElement('div');
+    var hasServices = saved && saved.services && saved.services.length > 0;
+
+    var svcToggle = document.createElement('button');
+    svcToggle.type = 'button';
+    svcToggle.className = 'text-xs text-zinc-500 hover:text-zinc-300 transition-colors';
+    svcToggle.textContent = hasServices ? '▾ Services (' + saved.services.length + ')' : '▸ Configure services';
+
+    var svcList = document.createElement('div');
+    svcList.className = 'mt-2 space-y-2' + (hasServices ? '' : ' hidden');
+
+    var svcAddBtn = document.createElement('button');
+    svcAddBtn.type = 'button';
+    svcAddBtn.className = 'text-xs text-emerald-500 hover:text-emerald-400 transition-colors mt-1' + (hasServices ? '' : ' hidden');
+    svcAddBtn.textContent = '+ Add service';
+
+    // Simple dev command input (shown when services section is collapsed)
+    var simpleCmd = document.createElement('div');
+    simpleCmd.className = hasServices ? 'hidden' : '';
+    simpleCmd.innerHTML =
+      '<label class="block text-xs text-zinc-500 mb-1">Dev command <span class="text-zinc-600">(optional, auto-detected)</span></label>' +
+      '<input type="text" placeholder="npm run dev" value="' + (saved && saved.services && saved.services.length === 1 && saved.services[0].path === '.' ? (saved.services[0].devCommand || '') : '') + '" ' +
+        'class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-2 text-xs font-mono focus:outline-none focus:border-emerald-500/50 placeholder-zinc-700" />';
+
+    svcToggle.addEventListener('click', function() {
+      var isHidden = svcList.classList.contains('hidden');
+      if (isHidden) {
+        svcList.classList.remove('hidden');
+        svcAddBtn.classList.remove('hidden');
+        simpleCmd.classList.add('hidden');
+        svcToggle.textContent = '▾ Services (' + svcList.children.length + ')';
+        // If no services yet, add one
+        if (svcList.children.length === 0) {
+          var simpleCmdVal = simpleCmd.querySelector('input').value.trim();
+          svcList.appendChild(createServiceRow({
+            label: '', path: '.', devCommand: simpleCmdVal, type: 'dev'
+          }, idx, 0));
+          svcToggle.textContent = '▾ Services (1)';
+        }
+      } else {
+        svcList.classList.add('hidden');
+        svcAddBtn.classList.add('hidden');
+        simpleCmd.classList.remove('hidden');
+        svcToggle.textContent = '▸ Configure services';
+      }
+    });
+
+    svcAddBtn.addEventListener('click', function() {
+      svcList.appendChild(createServiceRow({ label: '', path: '.', devCommand: '', type: 'dev' }, idx, svcList.children.length));
+      svcToggle.textContent = '▾ Services (' + svcList.children.length + ')';
+    });
+
+    // Populate services from saved data
+    if (hasServices) {
+      saved.services.forEach(function(svc, si) {
+        svcList.appendChild(createServiceRow(svc, idx, si));
+      });
+    }
+
+    svcSection.appendChild(svcToggle);
+    svcSection.appendChild(simpleCmd);
+    svcSection.appendChild(svcList);
+    svcSection.appendChild(svcAddBtn);
+    card.appendChild(svcSection);
+
+    // Wire up remove button
+    var removeBtn = header.querySelector('.remove-repo-btn');
+    if (removeBtn) {
+      removeBtn.addEventListener('click', function() {
+        var entryIdx = repoEntries.indexOf(entry);
+        if (entryIdx > -1) repoEntries.splice(entryIdx, 1);
+        card.remove();
+        renumberCards();
+        validate();
+      });
+    }
+
+    select.addEventListener('change', validate);
+    if (allGhRepos.length > 0) {
+      populateSelect(select, saved ? saved.fullName : '');
+    }
+
+    var entry = { card: card, select: select, subCheck: subCheck, svcList: svcList, svcSection: svcSection, simpleCmd: simpleCmd, svcToggle: svcToggle };
+    repoEntries.push(entry);
+    container.appendChild(card);
+    return entry;
+  }
+
+  function renumberCards() {
+    repoEntries.forEach(function(entry, i) {
+      var header = entry.card.querySelector('.text-xs.text-zinc-500.font-medium');
+      if (header) header.textContent = 'Repository ' + (i + 1);
+    });
+  }
+
+  // ── Collect state from DOM ────────────────────────────────────────────
+  function collectRepos() {
+    return repoEntries.map(function(entry) {
+      var fullName = entry.select.value;
+      if (!fullName) return null;
+      var repoName = fullName.split('/')[1] || fullName;
+
+      // Check if services are expanded
+      var svcHidden = entry.svcList.classList.contains('hidden');
+      var services = [];
+
+      if (svcHidden) {
+        // Simple mode: use the simple dev command input
+        var simpleCmdVal = entry.simpleCmd.querySelector('input').value.trim();
+        if (simpleCmdVal) {
+          services = [{ label: repoName, path: '.', devCommand: simpleCmdVal, type: 'dev' }];
+        }
+      } else {
+        // Advanced mode: collect from service rows
+        var rows = entry.svcList.children;
+        for (var i = 0; i < rows.length; i++) {
+          var row = rows[i];
+          var label = row.querySelector('[data-field="label"]').value.trim();
+          var path = row.querySelector('[data-field="path"]').value.trim() || '.';
+          var devCommand = row.querySelector('[data-field="devCommand"]').value.trim();
+          var type = row.querySelector('[data-field="type"]').value;
+          if (label || devCommand) {
+            services.push({ label: label || repoName, path: path, devCommand: devCommand, type: type });
+          }
+        }
+      }
+
+      return {
+        fullName: fullName,
+        name: repoName,
+        url: 'https://github.com/' + fullName,
+        submodules: entry.subCheck.checked,
+        services: services
+      };
+    }).filter(Boolean);
+  }
+
+  // ── Validation ────────────────────────────────────────────────────────
+  function validate() {
+    var repos = collectRepos();
+    btn.disabled = repos.length === 0;
+  }
+
+  // ── Init ──────────────────────────────────────────────────────────────
+  if (!token) {
+    container.innerHTML = '<p class="text-sm text-red-400">No GitHub token — go back to step 4</p>';
+    addBtn.classList.add('hidden');
+  } else {
+    container.innerHTML = '<p class="text-xs text-zinc-500">Loading repositories...</p>';
+    loadGhRepos(function(repos) {
+      container.innerHTML = '';
+      if (savedRepos.length > 0) {
+        savedRepos.forEach(function(r) { createRepoCard(r); });
+      } else {
+        createRepoCard(null);
+      }
+      validate();
+    });
+  }
+
+  addBtn.addEventListener('click', function() {
+    createRepoCard(null);
+  });
 
   btn.addEventListener('click', function() {
-    GS.set({
-      repoFullName: select.value,
-      devCommand: devCmd.value.trim(),
-    });
+    var repos = collectRepos();
+    GS.set({ repos: repos });
     window.location.href = btn.dataset.href;
   });
 })();

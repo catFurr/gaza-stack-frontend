@@ -1,253 +1,92 @@
 ---
 import SetupLayout from '../../layouts/SetupLayout.astro';
 ---
-<SetupLayout step={9} title="Add provision workflow" subtitle="We'll create a pull request with the GitHub Actions workflow to set up your server.">
-  <div>
-    <div class="flex items-center justify-between mb-1.5">
-      <span class="text-sm font-medium">.github/workflows/provision.yml</span>
-      <button id="copy-provision" class="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">Copy</button>
+<SetupLayout step={9} title="Verify provision workflow" subtitle="Confirm that the provision workflow is ready in your kon fork.">
+  <div class="space-y-4">
+    <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-sm font-medium">Workflow status</span>
+        <span id="workflow-status" class="text-xs text-zinc-600">checking...</span>
+      </div>
+      <p id="workflow-detail" class="text-xs text-zinc-500"></p>
     </div>
-    <pre id="provision-yaml" class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 text-xs font-mono text-zinc-300 overflow-x-auto whitespace-pre max-h-80 overflow-y-auto"></pre>
+
+    <div class="flex items-center gap-3">
+      <button id="check-btn"
+        class="px-4 py-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-sm hover:border-zinc-700 transition-colors">
+        Re-check
+      </button>
+      <a id="repo-link" href="#" target="_blank" rel="noopener"
+        class="text-sm text-zinc-500 hover:text-zinc-300 transition-colors">
+        View fork on GitHub &nearr;
+      </a>
+    </div>
   </div>
 
-  <div class="mt-6 flex items-center gap-3">
-    <button id="create-pr-btn"
-      class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-sm font-medium rounded-lg transition-colors">
-      Create pull request
-    </button>
-    <button id="check-workflows-btn"
-      class="px-4 py-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-sm hover:border-zinc-700 transition-colors">
-      Check workflow
-    </button>
+  <div class="mt-6">
+    <h3 class="text-sm font-medium mb-2">What happens next</h3>
+    <ul class="text-xs text-zinc-500 space-y-1.5">
+      <li>&bull; The provision workflow will set up your VPS with nginx, SSL, Docker, and dev tools</li>
+      <li>&bull; Your project repos will be configured for cloning into dev sessions</li>
+      <li>&bull; AI coding tools (Claude Code, Codex) will be installed if keys were provided</li>
+    </ul>
   </div>
-
-  <div id="pr-msg" class="mt-4 hidden"></div>
 </SetupLayout>
 
 <script is:inline>
 (function() {
   var state = GS.get();
-  var repo = state.repoFullName || '';
-  var repoName = repo.split('/')[1] || '';
-  var domain = state.domain || 'example.com';
+  var konFork = state.konForkFullName || '';
   var token = state.githubPat || '';
   var btn = document.getElementById('next-btn');
+  var statusEl = document.getElementById('workflow-status');
+  var detailEl = document.getElementById('workflow-detail');
+  var checkBtn = document.getElementById('check-btn');
+  var repoLink = document.getElementById('repo-link');
 
-  var hasAnthropic = !!state.anthropicApiKey;
-  var hasOpenai = !!state.openaiApiKey;
-
-  var sVPS_SSH = '$' + '{{ secrets.VPS_SSH_KEY }}';
-  var sVPS_HOST = '$' + '{{ secrets.VPS_HOST }}';
-  var sCF_TOKEN = '$' + '{{ secrets.CLOUDFLARE_API_TOKEN }}';
-  var sKON_GH = '$' + '{{ secrets.KON_GITHUB_TOKEN }}';
-  var sANTHROPIC = '$' + '{{ secrets.ANTHROPIC_API_KEY }}';
-  var sOPENAI = '$' + '{{ secrets.OPENAI_API_KEY }}';
-  var ghActor = '$' + '{{ github.actor }}';
-
-  var konReposVal = JSON.stringify([{ name: repoName, url: 'https://github.com/' + repo }]);
-
-  var provisionYaml = [
-    'name: Provision Server',
-    'on:',
-    '  workflow_dispatch:',
-    '    inputs:',
-    '      domain:',
-    '        required: true',
-    '        type: string',
-    '        default: ' + domain,
-    '',
-    'jobs:',
-    '  provision:',
-    '    runs-on: ubuntu-latest',
-    '    steps:',
-    '      - uses: actions/checkout@v4',
-    '        with:',
-    '          repository: catFurr/kon',
-    '          ref: main',
-    '',
-    '      - name: Setup SSH',
-    '        run: |',
-    '          mkdir -p ~/.ssh',
-    '          echo "' + sVPS_SSH + '" > ~/.ssh/deploy_key',
-    '          chmod 600 ~/.ssh/deploy_key',
-    '          ssh-keyscan -H ' + sVPS_HOST + ' >> ~/.ssh/known_hosts',
-    '',
-    '      - name: Install Ansible',
-    '        run: pip install ansible',
-    '',
-    '      - name: Write inventory',
-    '        run: |',
-    '          cat > ansible/inventory/hosts.yml << EOF',
-    '          all:',
-    '            hosts:',
-    '              vps:',
-    '                ansible_host: ' + sVPS_HOST,
-    '                ansible_user: root',
-    '                ansible_ssh_private_key_file: ~/.ssh/deploy_key',
-    '          EOF',
-    '',
-    '      - name: Provision',
-    '        working-directory: ansible',
-    '        run: |',
-    '          ansible-playbook playbooks/provision.yml \\',
-    "            -e \"domain=" + '$' + "{{ inputs.domain }}\" \\",
-    '            -e "cloudflare_api_token=' + sCF_TOKEN + '" \\',
-    "            -e '" + '{"repos": ' + konReposVal + "}' \\",
-    '            -e "github_token=' + sKON_GH + '" \\',
-    '            -e "github_user=' + ghActor + '"' +
-    (hasAnthropic ? ' \\\n            -e "anthropic_api_key=' + sANTHROPIC + '"' : '') +
-    (hasOpenai ? ' \\\n            -e "openai_api_key=' + sOPENAI + '"' : ''),
-    '        env:',
-    '          ANSIBLE_HOST_KEY_CHECKING: "false"',
-  ].join('\n');
-
-  document.getElementById('provision-yaml').textContent = provisionYaml;
-
-  // Copy button
-  document.getElementById('copy-provision').addEventListener('click', function() {
-    navigator.clipboard.writeText(provisionYaml);
-    this.textContent = 'Copied!';
-    var self = this;
-    setTimeout(function() { self.textContent = 'Copy'; }, 1500);
-  });
-
-  var prBtn = document.getElementById('create-pr-btn');
-  var checkBtn = document.getElementById('check-workflows-btn');
-  var msgEl = document.getElementById('pr-msg');
-
-  // Show existing PR if already created
-  var existingPrUrl = GS.val('workflowPrUrl');
-  var existingPrNum = GS.val('workflowPrNumber');
-  if (existingPrUrl) {
-    msgEl.classList.remove('hidden');
-    msgEl.innerHTML = '<div class="text-sm"><span class="text-emerald-400">&#10003;</span> Pull request: <a href="' + existingPrUrl + '" target="_blank" rel="noopener" class="text-emerald-400 hover:underline">#' + existingPrNum + '</a></div>' +
-      '<p class="text-xs text-zinc-500 mt-1">Merge the PR, then continue to the next step.</p>';
-    prBtn.textContent = 'Re-create PR';
-    btn.disabled = false;
+  if (konFork) {
+    repoLink.href = 'https://github.com/' + konFork;
   }
 
-  function ghApi(method, path, body) {
-    var opts = {
-      method: method,
-      headers: { Authorization: 'token ' + token, 'Content-Type': 'application/json' },
-    };
-    if (body) opts.body = JSON.stringify(body);
-    return fetch('https://api.github.com' + path, opts);
-  }
-
-  // Detect default branch
-  var branch = 'main';
-  ghApi('GET', '/repos/' + repo).then(function(r) {
-    if (r.ok) return r.json();
-  }).then(function(data) {
-    if (data && data.default_branch) branch = data.default_branch;
-  }).catch(function() {});
-
-  // Create PR with workflow file
-  prBtn.addEventListener('click', async function() {
-    if (!token || !repo) return;
-
-    prBtn.disabled = true;
-    prBtn.textContent = 'Creating PR...';
-    msgEl.classList.add('hidden');
-
-    try {
-      var refRes = await ghApi('GET', '/repos/' + repo + '/git/ref/heads/' + branch);
-      if (!refRes.ok) throw new Error('Cannot read default branch');
-      var refData = await refRes.json();
-      var baseSha = refData.object.sha;
-
-      var prBranch = 'gaza-stack-setup';
-      await ghApi('DELETE', '/repos/' + repo + '/git/refs/heads/' + prBranch).catch(function() {});
-
-      var branchRes = await ghApi('POST', '/repos/' + repo + '/git/refs', {
-        ref: 'refs/heads/' + prBranch,
-        sha: baseSha,
-      });
-      if (!branchRes.ok) throw new Error('Failed to create branch');
-
-      async function createOrUpdateFile(path, content) {
-        var existRes = await ghApi('GET', '/repos/' + repo + '/contents/' + path + '?ref=' + prBranch);
-        var body = {
-          message: 'Add ' + path.split('/').pop(),
-          content: btoa(unescape(encodeURIComponent(content))),
-          branch: prBranch,
-        };
-        if (existRes.ok) {
-          var existData = await existRes.json();
-          body.sha = existData.sha;
-        }
-        var putRes = await ghApi('PUT', '/repos/' + repo + '/contents/' + path, body);
-        if (!putRes.ok) throw new Error('Failed to create ' + path);
-      }
-
-      await createOrUpdateFile('.github/workflows/provision.yml', provisionYaml);
-
-      // Close any existing PR from this branch
-      var existingPrs = await ghApi('GET', '/repos/' + repo + '/pulls?head=' + repo.split('/')[0] + ':' + prBranch + '&state=open');
-      if (existingPrs.ok) {
-        var prs = await existingPrs.json();
-        for (var i = 0; i < prs.length; i++) {
-          await ghApi('PATCH', '/repos/' + repo + '/pulls/' + prs[i].number, { state: 'closed' });
-        }
-      }
-
-      var prRes = await ghApi('POST', '/repos/' + repo + '/pulls', {
-        title: 'Add Gaza Stack provision workflow',
-        head: prBranch,
-        base: branch,
-        body: '## Gaza Stack Setup\n\nAdds a GitHub Actions workflow for:\n- **Provision Server** \u2014 sets up the VPS with nginx, SSL, and dev session tools\n\nAfter merging, go to Actions and run the **Provision Server** workflow.\n\nGenerated by [Gaza Stack](https://github.com/catFurr/kon) setup wizard.',
-      });
-
-      if (!prRes.ok) {
-        var prErr = await prRes.json();
-        throw new Error(prErr.message || 'Failed to create PR');
-      }
-
-      var prData = await prRes.json();
-      GS.set({ workflowPrUrl: prData.html_url, workflowPrNumber: prData.number, defaultBranch: branch });
-
-      msgEl.classList.remove('hidden');
-      msgEl.innerHTML = '<div class="text-sm"><span class="text-emerald-400">&#10003;</span> Pull request created: <a href="' + prData.html_url + '" target="_blank" rel="noopener" class="text-emerald-400 hover:underline">#' + prData.number + '</a></div>' +
-        '<p class="text-xs text-zinc-500 mt-1">Merge the PR, then continue to the next step.</p>';
-      btn.disabled = false;
-
-    } catch (e) {
-      msgEl.classList.remove('hidden');
-      msgEl.innerHTML = '<p class="text-sm text-red-400">Error: ' + e.message + '</p>';
-    } finally {
-      prBtn.disabled = false;
-      prBtn.textContent = 'Create pull request';
+  function checkWorkflow() {
+    if (!konFork || !token) {
+      statusEl.textContent = 'missing';
+      statusEl.className = 'text-xs text-red-400';
+      detailEl.textContent = 'No kon fork configured. Go back to step 8.';
+      return;
     }
-  });
 
-  // Check if workflow exists (after PR merge)
-  checkBtn.addEventListener('click', async function() {
-    checkBtn.disabled = true;
-    checkBtn.textContent = 'Checking...';
-    msgEl.classList.add('hidden');
+    statusEl.textContent = 'checking...';
+    statusEl.className = 'text-xs text-zinc-600';
 
-    try {
-      var res = await ghApi('GET', '/repos/' + repo + '/contents/.github/workflows/provision.yml?ref=' + branch);
-
-      msgEl.classList.remove('hidden');
-      if (res.ok) {
-        msgEl.innerHTML = '<div class="flex items-center gap-2 text-sm"><span class="text-emerald-400">&#10003;</span> provision.yml found on ' + branch + '</div>';
+    fetch('https://api.github.com/repos/' + konFork + '/contents/.github/workflows/provision.yml', {
+      headers: { Authorization: 'token ' + token }
+    })
+    .then(function(r) {
+      if (r.ok) {
+        statusEl.textContent = '✓ found';
+        statusEl.className = 'text-xs text-emerald-400';
+        detailEl.innerHTML = '<code class="text-zinc-300">.github/workflows/provision.yml</code> exists in <a href="https://github.com/' + konFork + '" target="_blank" rel="noopener" class="text-emerald-400 hover:underline">' + konFork + '</a>';
         btn.disabled = false;
       } else {
-        msgEl.innerHTML = '<p class="text-xs text-zinc-500">Workflow not found on ' + branch + '. Merge the pull request first, then check again.</p>';
+        statusEl.textContent = '✗ not found';
+        statusEl.className = 'text-xs text-red-400';
+        detailEl.textContent = 'Workflow not found in ' + konFork + '. Make sure the fork is up to date with catFurr/kon.';
       }
-    } catch (e) {
-      msgEl.classList.remove('hidden');
-      msgEl.innerHTML = '<p class="text-sm text-red-400">Error: ' + e.message + '</p>';
-    } finally {
-      checkBtn.disabled = false;
-      checkBtn.textContent = 'Check workflow';
-    }
-  });
+    })
+    .catch(function(e) {
+      statusEl.textContent = 'error';
+      statusEl.className = 'text-xs text-red-400';
+      detailEl.textContent = 'Error: ' + e.message;
+    });
+  }
+
+  checkBtn.addEventListener('click', checkWorkflow);
 
   btn.addEventListener('click', function() {
     window.location.href = btn.dataset.href;
   });
+
+  checkWorkflow();
 })();
 </script>

@@ -8,7 +8,7 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
         <span class="text-sm font-medium">Provision server</span>
         <span id="provision-status" class="text-xs text-zinc-600">not started</span>
       </div>
-      <p class="text-xs text-zinc-500 mb-3">Sets up nginx, SSL, sessions, and dev tools on your VPS. This may take several minutes.</p>
+      <p class="text-xs text-zinc-500 mb-3">Sets up nginx, SSL, Docker, sessions, and dev tools on your VPS. This may take several minutes.</p>
       <button id="provision-btn"
         class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-sm font-medium rounded-lg transition-colors">
         Run provision
@@ -27,13 +27,12 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
 <script is:inline>
 (function() {
   var state = GS.get();
-  var repo = state.repoFullName || '';
+  var konFork = state.konForkFullName || '';
   var domain = state.domain || 'example.com';
-  var branch = state.defaultBranch || 'main';
   var token = state.githubPat || '';
   var btn = document.getElementById('next-btn');
 
-  document.getElementById('actions-link').href = 'https://github.com/' + repo + '/actions';
+  document.getElementById('actions-link').href = 'https://github.com/' + konFork + '/actions';
 
   var provisionStatus = document.getElementById('provision-status');
   var provisionBtn = document.getElementById('provision-btn');
@@ -50,7 +49,7 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
   function pollRun(runId) {
     return new Promise(function(resolve, reject) {
       var interval = setInterval(function() {
-        fetch('https://api.github.com/repos/' + repo + '/actions/runs/' + runId, {
+        fetch('https://api.github.com/repos/' + konFork + '/actions/runs/' + runId, {
           headers: { Authorization: 'token ' + token }
         })
         .then(function(r) { return r.json(); })
@@ -59,12 +58,12 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
           if (run.status === 'completed') {
             clearInterval(interval);
             if (run.conclusion === 'success') {
-              provisionStatus.textContent = '\u2713 success';
+              provisionStatus.textContent = '✓ success';
               provisionStatus.className = 'text-xs text-emerald-400';
               addLog('Provision completed successfully!', 'ok');
               resolve();
             } else {
-              provisionStatus.textContent = '\u2717 ' + run.conclusion;
+              provisionStatus.textContent = '✗ ' + run.conclusion;
               provisionStatus.className = 'text-xs text-red-400';
               addLog('Provision failed: ' + run.conclusion + '. Check the Actions tab for details.', 'err');
               reject(new Error(run.conclusion));
@@ -76,18 +75,36 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
     });
   }
 
+  // Detect GitHub username for the workflow input
+  var githubUser = '';
+  fetch('https://api.github.com/user', { headers: { Authorization: 'token ' + token } })
+    .then(function(r) { return r.json(); })
+    .then(function(u) { githubUser = u.login || ''; })
+    .catch(function() {});
+
   provisionBtn.addEventListener('click', function() {
+    if (!konFork) {
+      addLog('No kon fork configured. Go back to step 8.', 'err');
+      return;
+    }
+
     provisionBtn.disabled = true;
     provisionStatus.textContent = 'triggering...';
-    addLog('Triggering provision workflow...', 'info');
+    addLog('Triggering provision workflow on ' + konFork + '...', 'info');
 
-    fetch('https://api.github.com/repos/' + repo + '/actions/workflows/provision.yml/dispatches', {
+    fetch('https://api.github.com/repos/' + konFork + '/actions/workflows/provision.yml/dispatches', {
       method: 'POST',
       headers: {
         Authorization: 'token ' + token,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ ref: branch, inputs: { domain: domain } }),
+      body: JSON.stringify({
+        ref: 'main',
+        inputs: {
+          domain: domain,
+          github_user: githubUser
+        }
+      }),
     })
     .then(function(r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -96,7 +113,7 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
       return new Promise(function(resolve) { setTimeout(resolve, 3000); });
     })
     .then(function() {
-      return fetch('https://api.github.com/repos/' + repo + '/actions/runs?event=workflow_dispatch&per_page=1', {
+      return fetch('https://api.github.com/repos/' + konFork + '/actions/runs?event=workflow_dispatch&per_page=1', {
         headers: { Authorization: 'token ' + token }
       });
     })
