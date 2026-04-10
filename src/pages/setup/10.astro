@@ -28,7 +28,6 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
 (function() {
   var state = GS.get();
   var konFork = state.konForkFullName || '';
-  var domain = state.domain || 'example.com';
   var token = state.githubPat || '';
   var btn = document.getElementById('next-btn');
 
@@ -75,13 +74,6 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
     });
   }
 
-  // Detect GitHub username for the workflow input
-  var githubUser = '';
-  fetch('https://api.github.com/user', { headers: { Authorization: 'token ' + token } })
-    .then(function(r) { return r.json(); })
-    .then(function(u) { githubUser = u.login || ''; })
-    .catch(function() {});
-
   provisionBtn.addEventListener('click', function() {
     if (!konFork) {
       addLog('No kon fork configured. Go back to step 8.', 'err');
@@ -98,13 +90,7 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
         Authorization: 'token ' + token,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        ref: 'main',
-        inputs: {
-          domain: domain,
-          github_user: githubUser
-        }
-      }),
+      body: JSON.stringify({ ref: 'main' }),
     })
     .then(function(r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
