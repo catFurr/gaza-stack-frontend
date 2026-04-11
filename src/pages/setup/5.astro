@@ -40,33 +40,51 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
     </div>
   </div>
 
-  <p class="text-xs text-zinc-500 mt-4">You can skip this step and add keys later. At least one is recommended for dev sessions.</p>
+  <!-- Vault Password -->
+  <div class="mt-6 bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+    <div class="flex items-center gap-3 mb-3">
+      <span class="text-sm font-semibold">Vault Password</span>
+      <span class="text-xs text-zinc-500 bg-zinc-800 rounded px-1.5 py-0.5">Ansible Vault</span>
+    </div>
+    <p class="text-xs text-zinc-400 mb-3">Encrypts per-project secrets. Repos with a <code class="text-zinc-300">vault/</code> directory will have their secrets auto-decrypted into <code class="text-zinc-300">.env</code> files during session creation.</p>
+    <div>
+      <label for="vault-password" class="block text-xs text-zinc-500 mb-1">Password</label>
+      <input id="vault-password" type="text" autocomplete="off" placeholder="Choose a vault password"
+        class="secret-input w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-emerald-500/50 placeholder-zinc-600" />
+    </div>
+  </div>
+
+  <p class="text-xs text-zinc-500 mt-4">All fields on this page are optional. You can add them later.</p>
 </SetupLayout>
 
 <script is:inline>
 (function() {
   var anthropicKey = document.getElementById('anthropic-key');
   var openaiKey = document.getElementById('openai-key');
+  var vaultPassword = document.getElementById('vault-password');
   var btn = document.getElementById('next-btn');
 
   anthropicKey.value = GS.val('anthropicApiKey');
   openaiKey.value = GS.val('openaiApiKey');
+  vaultPassword.value = GS.val('vaultPassword');
 
-  // Always allow continue (both are optional)
+  // Always allow continue (all are optional)
   btn.disabled = false;
-  btn.textContent = GS.val('anthropicApiKey') || GS.val('openaiApiKey') ? 'Continue \u2192' : 'Skip \u2192';
+  btn.textContent = GS.val('anthropicApiKey') || GS.val('openaiApiKey') || GS.val('vaultPassword') ? 'Continue \u2192' : 'Skip \u2192';
 
   function updateBtnText() {
-    btn.textContent = (anthropicKey.value.trim() || openaiKey.value.trim()) ? 'Continue \u2192' : 'Skip \u2192';
+    btn.textContent = (anthropicKey.value.trim() || openaiKey.value.trim() || vaultPassword.value.trim()) ? 'Continue \u2192' : 'Skip \u2192';
   }
 
   anthropicKey.addEventListener('input', updateBtnText);
   openaiKey.addEventListener('input', updateBtnText);
+  vaultPassword.addEventListener('input', updateBtnText);
 
   btn.addEventListener('click', function() {
     GS.set({
       anthropicApiKey: anthropicKey.value.trim(),
       openaiApiKey: openaiKey.value.trim(),
+      vaultPassword: vaultPassword.value.trim(),
     });
     window.location.href = btn.dataset.href;
   });

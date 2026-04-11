@@ -27,6 +27,20 @@ import Layout from '../../layouts/Layout.astro';
         </div>
       </div>
 
+      <!-- Per-project secrets instructions (shown only if vault password was set) -->
+      <div id="vault-instructions" class="hidden mt-6 text-left bg-zinc-900 border border-zinc-800 rounded-lg p-5">
+        <h3 class="text-sm font-medium mb-3">Per-project secrets</h3>
+        <p class="text-xs text-zinc-400 mb-3">Add a <code class="text-zinc-300">vault/</code> directory to any repo with encrypted YAML files. They auto-decrypt to <code class="text-zinc-300">.env</code> files when sessions are created.</p>
+        <div class="bg-zinc-950 rounded-lg p-3 font-mono text-xs space-y-1">
+          <p class="text-zinc-500"># Create a secrets file</p>
+          <p class="text-emerald-400">mkdir -p vault</p>
+          <p class="text-emerald-400">echo 'DATABASE_URL: postgres://...' > vault/dev.yml</p>
+          <p class="text-emerald-400">ansible-vault encrypt vault/dev.yml</p>
+          <p class="text-zinc-500"># Add .env.* to .gitignore, then commit vault/dev.yml</p>
+        </div>
+        <p class="text-xs text-zinc-500 mt-3">vault/dev.yml &rarr; .env.dev &nbsp;&middot;&nbsp; vault/staging.yml &rarr; .env.staging</p>
+      </div>
+
       <div class="mt-8 flex items-center justify-center gap-4">
         <a href="/" class="text-sm text-zinc-500 hover:text-zinc-300 transition-colors">Home</a>
         <button id="reset-btn" class="text-sm text-zinc-600 hover:text-zinc-400 transition-colors">Reset setup data</button>
@@ -43,6 +57,10 @@ import Layout from '../../layouts/Layout.astro';
 
   document.getElementById('ssh-alias').textContent = alias;
   document.getElementById('session-url').textContent = '<name>.' + domain;
+
+  if (state.vaultPassword) {
+    document.getElementById('vault-instructions').classList.remove('hidden');
+  }
 
   document.getElementById('reset-btn').addEventListener('click', function() {
     if (confirm('Clear all setup data from this browser?')) {

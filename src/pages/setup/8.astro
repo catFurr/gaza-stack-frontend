@@ -64,8 +64,8 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
       </div>
 
       <!-- Optional AI secrets -->
-      <div id="ai-secrets" class="hidden space-y-3">
-        <p class="text-xs text-zinc-500 mt-2 mb-1">AI tools (from step 5)</p>
+      <div id="optional-secrets" class="hidden space-y-3">
+        <p class="text-xs text-zinc-500 mt-2 mb-1">Optional (from step 5)</p>
 
         <div id="secret-anthropic" class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 hidden">
           <div class="flex items-center justify-between">
@@ -79,6 +79,14 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
             <code class="text-sm font-mono text-emerald-400">OPENAI_API_KEY</code>
             <span id="status-openai" class="text-xs text-zinc-600">&mdash;</span>
           </div>
+        </div>
+
+        <div id="secret-vault" class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 hidden">
+          <div class="flex items-center justify-between">
+            <code class="text-sm font-mono text-emerald-400">VAULT_PASSWORD</code>
+            <span id="status-vault" class="text-xs text-zinc-600">&mdash;</span>
+          </div>
+          <p class="text-xs text-zinc-500 mt-0.5">Ansible Vault password for per-project secrets</p>
         </div>
       </div>
     </div>
@@ -219,8 +227,8 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
     { name: 'KON_GITHUB_TOKEN',     value: token,                      statusId: 'status-gh',    required: true },
   ];
 
-  if (state.anthropicApiKey || state.openaiApiKey) {
-    document.getElementById('ai-secrets').classList.remove('hidden');
+  if (state.anthropicApiKey || state.openaiApiKey || state.vaultPassword) {
+    document.getElementById('optional-secrets').classList.remove('hidden');
   }
   if (state.anthropicApiKey) {
     document.getElementById('secret-anthropic').classList.remove('hidden');
@@ -229,6 +237,10 @@ import SetupLayout from '../../layouts/SetupLayout.astro';
   if (state.openaiApiKey) {
     document.getElementById('secret-openai').classList.remove('hidden');
     secrets.push({ name: 'OPENAI_API_KEY', value: state.openaiApiKey, statusId: 'status-openai', required: false });
+  }
+  if (state.vaultPassword) {
+    document.getElementById('secret-vault').classList.remove('hidden');
+    secrets.push({ name: 'VAULT_PASSWORD', value: state.vaultPassword, statusId: 'status-vault', required: false });
   }
 
   function setStatus(id, ok, text) {
